@@ -2,8 +2,8 @@
 
 [ext_resource type="Script" uid="uid://b85kwb3qhqdln" path="res://ficha.gd" id="1_dcclv"]
 
-[node name="Ficha" type="ColorRect" unique_id=2053706805]
-offset_right = 80.0
-offset_bottom = 80.0
-color = Color(1, 0, 0, 1)
+[node name="Ficha" type="TextureRect" unique_id=771296700]
+offset_right = 70.0
+offset_bottom = 70.0
+stretch_mode = 5
 script = ExtResource("1_dcclv")

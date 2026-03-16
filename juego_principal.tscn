@@ -7,12 +7,12 @@ content_margin_left = 10.0
 content_margin_top = 10.0
 content_margin_right = 10.0
 content_margin_bottom = 10.0
-bg_color = Color(0.09411765, 0.09411765, 0.1882353, 1)
+bg_color = Color(0.7607843, 0.8117647, 0.8901961, 1)
 border_width_left = 3
 border_width_top = 3
 border_width_right = 3
 border_width_bottom = 3
-border_color = Color(0.39215687, 0.5882353, 1, 1)
+border_color = Color(0.545549, 0.63161653, 0.76425946, 1)
 corner_radius_top_left = 15
 corner_radius_top_right = 15
 corner_radius_bottom_right = 15
@@ -36,6 +36,7 @@ offset_left = 20.0
 offset_top = 15.0
 offset_right = 730.0
 offset_bottom = 85.0
+theme_override_colors/font_color = Color(0, 0, 0, 1)
 text = "Aquí irá la pregunta"
 horizontal_alignment = 1
 vertical_alignment = 1
@@ -47,6 +48,7 @@ offset_left = 325.0
 offset_top = 85.0
 offset_right = 425.0
 offset_bottom = 135.0
+theme_override_colors/font_color = Color(0, 0, 0, 1)
 theme_override_font_sizes/font_size = 25
 text = "15"
 horizontal_alignment = 1
@@ -62,18 +64,28 @@ theme_override_constants/separation = 10
 
 [node name="A" type="Button" parent="CapaUI/PantallaPregunta/ContenedorBotones" unique_id=927517820]
 layout_mode = 2
+theme_override_colors/font_hover_color = Color(0, 0.7494335, 0, 1)
 
 [node name="B" type="Button" parent="CapaUI/PantallaPregunta/ContenedorBotones" unique_id=740222296]
 layout_mode = 2
+theme_override_colors/font_hover_color = Color(0, 0.7494335, 0, 1)
 
 [node name="C" type="Button" parent="CapaUI/PantallaPregunta/ContenedorBotones" unique_id=1323849831]
 layout_mode = 2
+theme_override_colors/font_hover_color = Color(0, 0.7494335, 0, 1)
 
 [node name="D" type="Button" parent="CapaUI/PantallaPregunta/ContenedorBotones" unique_id=112784136]
 layout_mode = 2
+theme_override_colors/font_hover_color = Color(0, 0.7494335, 0, 1)
 
 [node name="Temporizador" type="Timer" parent="." unique_id=1241341728]
 wait_time = 15.0
 one_shot = true
 
 [node name="TableroVisual" type="Node2D" parent="." unique_id=111692565]
+
+[node name="SonidoFicha" type="AudioStreamPlayer2D" parent="." unique_id=865014239]
+
+[node name="SonidoEfectos" type="AudioStreamPlayer2D" parent="." unique_id=1179900867]
+
+[node name="SonidoUI" type="AudioStreamPlayer2D" parent="." unique_id=1002432393]

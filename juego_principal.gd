@@ -10,6 +10,33 @@ extends Node2D
 @onready var capa_ui = $CapaUI
 
 var ficha_escena = preload("res://ficha.tscn")
+# ====== SONIDOS ======
+@onready var sonido_ficha = $SonidoFicha
+@onready var sonido_efectos = $SonidoEfectos
+@onready var sonido_ui = $SonidoUI
+
+# Sonidos de fichas cayendo (uno por cada fila)
+var sonidos_ficha = {
+	5: preload("res://sonidos/fichaf1.wav"),  # Fila del fondo (índice 5)
+	4: preload("res://sonidos/fichaf2.wav"),
+	3: preload("res://sonidos/fichaf3.wav"),
+	2: preload("res://sonidos/fichaf4.wav"),
+	1: preload("res://sonidos/fichaf5.wav"),
+	0: preload("res://sonidos/fichaf6.wav")   # Fila de arriba (índice 0)
+}
+
+# Sonidos de efectos especiales
+var snd_bomba_seleccionada = preload("res://sonidos/bomba_seleccionada.wav")
+var snd_hielo_seleccionado = preload("res://sonidos/hielo_seleccionado.wav")
+var snd_congelado = preload("res://sonidos/congelado.wav")
+var snd_explosion = preload("res://sonidos/explosion.wav")
+var snd_retirar_fichas = preload("res://sonidos/retirar_todas_fichas.wav")
+var snd_ficha_seleccionada = preload("res://sonidos/ficha_seleccionada.wav")
+
+# Sonidos de trivia
+var snd_correcto = preload("res://sonidos/correcto.wav")
+var snd_incorrecto = preload("res://sonidos/incorrecto.wav")
+
 
 # ====== CONFIGURACIÓN DEL TABLERO ======
 const COLUMNAS = 7
@@ -84,7 +111,22 @@ var preguntas_base = [
 	{"pregunta": "Choose: 'He ___ breakfast every morning'", "opciones": ["have", "has", "having", "had"], "correcta": 1},
 	{"pregunta": "What's the opposite of 'BIG'?", "opciones": ["Large", "Huge", "Small", "Tall"], "correcta": 2},
 	{"pregunta": "Translate: 'HERMANO'", "opciones": ["Sister", "Brother", "Father", "Mother"], "correcta": 1},
-	{"pregunta": "'We ___ to the park tomorrow'", "opciones": ["go", "goes", "will go", "going"], "correcta": 2}
+	{"pregunta": "'We ___ to the park tomorrow'", "opciones": ["go", "goes", "will go", "going"], "correcta": 2},
+	{"pregunta": "What does 'TREE' mean?", "opciones": ["Flor", "Árbol", "Hierba", "Hoja"], "correcta": 1},
+	{"pregunta": "'Can you ___ me a favor?'", "opciones": ["make", "do", "give", "take"], "correcta": 1},
+	{"pregunta": "What's the past of 'Buy'?", "opciones": ["Buyed", "Bought", "Buied", "Buying"], "correcta": 1},
+	{"pregunta": "Opposite of 'FAST'?", "opciones": ["Quick", "Rapid", "Slow", "Speed"], "correcta": 2},
+	{"pregunta": "'There ___ many people here'", "opciones": ["is", "am", "are", "be"], "correcta": 2},
+	{"pregunta": "What does 'RAIN' mean?", "opciones": ["Sol", "Nieve", "Lluvia", "Viento"], "correcta": 2},
+	{"pregunta": "'I ___ to the gym every Monday'", "opciones": ["goes", "go", "going", "gone"], "correcta": 1},
+	{"pregunta": "What's 'MARIPOSA' in English?", "opciones": ["Bird", "Bee", "Butterfly", "Dragonfly"], "correcta": 2},
+	{"pregunta": "'He ___ never been to Paris'", "opciones": ["have", "has", "had", "is"], "correcta": 1},
+	{"pregunta": "Synonym of 'BEAUTIFUL'?", "opciones": ["Ugly", "Pretty", "Bad", "Dark"], "correcta": 1},
+	{"pregunta": "'We need ___ buy milk'", "opciones": ["for", "at", "to", "in"], "correcta": 2},
+	{"pregunta": "What does 'CLOUD' mean?", "opciones": ["Cielo", "Nube", "Estrella", "Luna"], "correcta": 1},
+	{"pregunta": "Past of 'Write'?", "opciones": ["Writed", "Written", "Wrote", "Writing"], "correcta": 2},
+	{"pregunta": "'She ___ like chocolate'", "opciones": ["don't", "doesn't", "isn't", "aren't"], "correcta": 1},
+	{"pregunta": "What does 'SMILE' mean?", "opciones": ["Llorar", "Gritar", "Sonreír", "Dormir"], "correcta": 2}
 ]
 
 var preguntas_activas = []
@@ -95,6 +137,20 @@ func celda_pos_x(columna):
 
 func celda_pos_y(fila):
 	return tablero_y + ESPACIO + fila * (TAMANO_CELDA + ESPACIO)
+
+# ====== FUNCIONES DE SONIDO ======
+func reproducir_ficha(fila):
+	if sonidos_ficha.has(fila):
+		sonido_ficha.stream = sonidos_ficha[fila]
+		sonido_ficha.play()
+
+func reproducir_efecto(sonido):
+	sonido_efectos.stream = sonido
+	sonido_efectos.play()
+
+func reproducir_ui(sonido):
+	sonido_ui.stream = sonido
+	sonido_ui.play()
 
 # ====== INICIO ======
 func _ready():
@@ -328,6 +384,7 @@ func _on_seleccionar_normal():
 	boton_cancelar.hide()
 	label_poder_activo.show()
 	limpiar_resaltado()
+	reproducir_ui(snd_ficha_seleccionada)
 
 func _on_seleccionar_bomba():
 	poder_seleccionado = "BOMBA"
@@ -336,6 +393,7 @@ func _on_seleccionar_bomba():
 	boton_cancelar.show()
 	label_poder_activo.show()  # Ahora se muestra junto con Cancelar
 	resaltar_fichas_enemigas()
+	reproducir_ui(snd_bomba_seleccionada)
 
 func _on_seleccionar_hielo():
 	poder_seleccionado = "HIELO"
@@ -344,6 +402,7 @@ func _on_seleccionar_hielo():
 	boton_cancelar.show()
 	label_poder_activo.show()  # Ahora se muestra junto con Cancelar
 	limpiar_resaltado()
+	reproducir_ui(snd_hielo_seleccionado)
 
 func _on_cancelar_poder():
 	_on_seleccionar_normal()
@@ -418,8 +477,8 @@ func _input(event):
 		
 		if mx >= tablero_x and mx <= tablero_x + ancho_tablero:
 			if my >= tablero_y and my <= tablero_y + alto_tablero:
-				var columna = int((mx - tablero_x - ESPACIO) / (TAMANO_CELDA + ESPACIO))
-				var fila = int((my - tablero_y - ESPACIO) / (TAMANO_CELDA + ESPACIO))
+				var columna = int((mx - tablero_x - ESPACIO) / float(TAMANO_CELDA + ESPACIO))
+				var fila = int((my - tablero_y - ESPACIO) / float(TAMANO_CELDA + ESPACIO))
 				columna = clamp(columna, 0, COLUMNAS - 1)
 				fila = clamp(fila, 0, FILAS - 1)
 				
@@ -516,14 +575,17 @@ func _on_boton_trivia_presionado(indice_boton):
 	temporizador.stop()
 	
 	if indice_boton == pregunta_actual["correcta"]:
+		reproducir_ui(snd_correcto)
 		manejar_acierto()
 	else:
+		reproducir_ui(snd_incorrecto)
 		manejar_fallo()
 
 func _on_tiempo_agotado():
 	if fase_juego != "PREGUNTA":
 		return
-	
+	reproducir_ui(snd_incorrecto)
+
 	# Romper racha
 	if turno_actual == 1:
 		racha_j1 = 0
@@ -636,12 +698,16 @@ func lanzar_ficha(columna):
 	nueva_ficha.position = Vector2(celda_pos_x(columna), tablero_y - TAMANO_CELDA)
 	nueva_ficha.size = Vector2(TAMANO_CELDA, TAMANO_CELDA)
 	nueva_ficha.configurar(turno_actual)
+	#nueva_ficha.queue_redraw()  # Forzar que se dibuje el círculo
 	tablero_visual.add_child(nueva_ficha)
 	
 	fichas_visuales[columna][fila] = nueva_ficha
 	
 	var destino_y = celda_pos_y(fila)
 	nueva_ficha.animar_caida(destino_y)
+	
+	# Sonido de ficha cayendo según la fila
+	reproducir_ficha(fila)
 	
 	ocultar_botones_poder()
 	
@@ -684,6 +750,7 @@ func usar_bomba(columna, fila):
 	if fichas_visuales[columna][fila] != null:
 		var ficha = fichas_visuales[columna][fila]
 		crear_explosion(ficha.position + Vector2(TAMANO_CELDA / 2, TAMANO_CELDA / 2))
+		reproducir_efecto(snd_explosion)
 		ficha.queue_free()
 		fichas_visuales[columna][fila] = null
 	
@@ -794,6 +861,7 @@ func usar_hielo(columna):
 		flecha.add_theme_color_override("font_color", Color(0.3, 0.8, 1))
 	
 	actualizar_inventario()
+	reproducir_efecto(snd_congelado)
 	
 	# Volver a modo normal para lanzar ficha
 	poder_seleccionado = "NINGUNO"
@@ -865,44 +933,46 @@ func mostrar_empate():
 
 # ====== REINICIAR JUEGO ======
 func _on_reiniciar():
+	reproducir_efecto(snd_retirar_fichas)
+	get_tree().change_scene_to_file("res://menu_principal.tscn")
 	# Limpiar todo
-	boton_reiniciar.hide()
-	juego_terminado = false
-	turno_actual = 1
-	racha_j1 = 0
-	racha_j2 = 0
-	bombas_j1 = 0
-	bombas_j2 = 0
-	hielos_j1 = 0
-	hielos_j2 = 0
-	poder_seleccionado = "NINGUNO"
-	columnas_congeladas_info.clear()
-	fichas_resaltadas.clear()
-	preguntas_activas = preguntas_base.duplicate(true)
-	
-	# Eliminar todas las fichas visuales del tablero
-	for x in range(COLUMNAS):
-		for y in range(FILAS):
-			if fichas_visuales[x][y] != null:
-				fichas_visuales[x][y].queue_free()
-	
-	# Reiniciar matrices
-	crear_matriz_tablero()
-	crear_matriz_fichas_visuales()
-	
-	# Restaurar colores de celdas
-	for x in range(COLUMNAS):
-		for y in range(FILAS):
-			var celda = tablero_visual.get_node_or_null("Celda_" + str(x) + "_" + str(y))
-			if celda:
-				celda.color = color_celda_vacia
-		var flecha = tablero_visual.get_node_or_null("Flecha_" + str(x))
-		if flecha:
-			flecha.text = "▼"
-			flecha.add_theme_color_override("font_color", Color(1, 1, 1, 0.6))
-	
-	actualizar_inventario()
-	iniciar_turno()
+	#boton_reiniciar.hide()
+	#juego_terminado = false
+	#turno_actual = 1
+	#racha_j1 = 0
+	#racha_j2 = 0
+	#bombas_j1 = 0
+	#bombas_j2 = 0
+	#hielos_j1 = 0
+	#hielos_j2 = 0
+	#poder_seleccionado = "NINGUNO"
+	#columnas_congeladas_info.clear()
+	#fichas_resaltadas.clear()
+	#preguntas_activas = preguntas_base.duplicate(true)
+	#
+	## Eliminar todas las fichas visuales del tablero
+	#for x in range(COLUMNAS):
+		#for y in range(FILAS):
+			#if fichas_visuales[x][y] != null:
+				#fichas_visuales[x][y].queue_free()
+	#
+	## Reiniciar matrices
+	#crear_matriz_tablero()
+	#crear_matriz_fichas_visuales()
+	#
+	## Restaurar colores de celdas
+	#for x in range(COLUMNAS):
+		#for y in range(FILAS):
+			#var celda = tablero_visual.get_node_or_null("Celda_" + str(x) + "_" + str(y))
+			#if celda:
+				#celda.color = color_celda_vacia
+		#var flecha = tablero_visual.get_node_or_null("Flecha_" + str(x))
+		#if flecha:
+			#flecha.text = "▼"
+			#flecha.add_theme_color_override("font_color", Color(1, 1, 1, 0.6))
+	#
+	#actualizar_inventario()
+	#iniciar_turno()
 
 func cambiar_turno():
 	turno_actual = 2 if turno_actual == 1 else 1

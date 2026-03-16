@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="Line4UpTrivia"
-run/main_scene="uid://c4ac2kujvamhd"
+run/main_scene="uid://io76jp65y2tv"
 config/features=PackedStringArray("4.6", "Mobile")
 config/icon="res://icon.svg"
 

@@ -1,0 +1,40 @@
+[gd_scene format=3 uid="uid://io76jp65y2tv"]
+
+[ext_resource type="Script" uid="uid://cajekoxpohscg" path="res://menu_principal.gd" id="1_bj1uy"]
+
+[node name="MenuPrincipal" type="Control" unique_id=807288850]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+script = ExtResource("1_bj1uy")
+
+[node name="FondoMenu" type="ColorRect" parent="." unique_id=245092018]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="Titulo" type="Label" parent="." unique_id=218067255]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 23.0
+
+[node name="Subtitulo" type="Label" parent="." unique_id=980902405]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 23.0
+
+[node name="BotonJugar" type="Button" parent="." unique_id=234438334]
+layout_mode = 0
+offset_right = 8.0
+offset_bottom = 8.0
+
+[node name="BotonInstrucciones" type="Button" parent="." unique_id=1467101746]
+layout_mode = 0
+offset_right = 8.0
+offset_bottom = 8.0
+
+[node name="BotonSalir" type="Button" parent="." unique_id=597951655]
+layout_mode = 0
+offset_right = 8.0
+offset_bottom = 8.0
