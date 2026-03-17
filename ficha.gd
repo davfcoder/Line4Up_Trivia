@@ -8,6 +8,8 @@ var textura_amarilla = preload("res://imagenes/ficha_amarilla70x70.png")
 
 func configurar(num_jugador):
 	jugador = num_jugador
+	stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED  # Que llene todo el espacio
+	expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	
 	if jugador == 1:
 		texture = textura_roja

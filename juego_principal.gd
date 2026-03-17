@@ -1,5 +1,20 @@
 extends Node2D
 
+# ====== CLASE PARA CELDAS REDONDAS ======
+class CeldaRedonda extends Control:
+	var color_celda = Color(0.9, 0.9, 0.95)
+	var color_tablero = Color(0.0, 0.2, 0.7)
+	
+	func set_color(nuevo_color):
+		color_celda = nuevo_color
+		queue_redraw()
+	
+	func _draw():
+		var radio = size.x / 2.0
+		var centro = Vector2(radio, radio)
+		draw_circle(centro, radio, color_celda)
+
+
 # ====== REFERENCIAS A LOS NODOS ======
 @onready var pantalla_pregunta = $CapaUI/PantallaPregunta
 @onready var texto_pregunta = $CapaUI/PantallaPregunta/TextoPregunta
@@ -8,6 +23,9 @@ extends Node2D
 @onready var temporizador = $Temporizador
 @onready var tablero_visual = $TableroVisual
 @onready var capa_ui = $CapaUI
+
+var fichas_ganadoras = []  # Guardará las posiciones de las 4 fichas que ganaron
+
 
 var ficha_escena = preload("res://ficha.tscn")
 # ====== SONIDOS ======
@@ -91,43 +109,7 @@ var label_notificacion = null
 var boton_reiniciar = null
 
 # ====== BASE DE DATOS DE PREGUNTAS ======
-var preguntas_base = [
-	{"pregunta": "What does 'CAT' mean in Spanish?", "opciones": ["Perro", "Gato", "Ratón", "Pájaro"], "correcta": 1},
-	{"pregunta": "Choose: 'She ___ to school yesterday'", "opciones": ["go", "goes", "went", "going"], "correcta": 2},
-	{"pregunta": "What's the opposite of 'HOT'?", "opciones": ["Warm", "Cold", "Cool", "Frozen"], "correcta": 1},
-	{"pregunta": "How do you say 'ROJO' in English?", "opciones": ["Blue", "Yellow", "Red", "Green"], "correcta": 2},
-	{"pregunta": "Complete: 'I ___ from Mexico'", "opciones": ["is", "are", "am", "be"], "correcta": 2},
-	{"pregunta": "Which word is a verb?", "opciones": ["Beautiful", "Quickly", "Run", "Table"], "correcta": 2},
-	{"pregunta": "Translate: 'The book is on the table'", "opciones": ["El libro está en la mesa", "El libro son en mesa", "La mesa tiene libro", "Libro está mesa"], "correcta": 0},
-	{"pregunta": "Plural of 'Mouse'?", "opciones": ["Mouses", "Mice", "Meese", "Mouse"], "correcta": 1},
-	{"pregunta": "What is the synonym of 'Happy'?", "opciones": ["Sad", "Angry", "Glad", "Tired"], "correcta": 2},
-	{"pregunta": "I haven't seen him ___ 2010.", "opciones": ["since", "for", "in", "at"], "correcta": 0},
-	{"pregunta": "What does 'DOG' mean?", "opciones": ["Gato", "Perro", "Pez", "Ave"], "correcta": 1},
-	{"pregunta": "'She is ___ than her sister'", "opciones": ["tall", "taller", "tallest", "more tall"], "correcta": 1},
-	{"pregunta": "What color is the sky?", "opciones": ["Red", "Green", "Blue", "Yellow"], "correcta": 2},
-	{"pregunta": "Past tense of 'Eat'?", "opciones": ["Eated", "Ate", "Eaten", "Eating"], "correcta": 1},
-	{"pregunta": "'They ___ playing soccer now'", "opciones": ["is", "am", "are", "be"], "correcta": 2},
-	{"pregunta": "What does 'HOUSE' mean?", "opciones": ["Carro", "Casa", "Calle", "Ciudad"], "correcta": 1},
-	{"pregunta": "Choose: 'He ___ breakfast every morning'", "opciones": ["have", "has", "having", "had"], "correcta": 1},
-	{"pregunta": "What's the opposite of 'BIG'?", "opciones": ["Large", "Huge", "Small", "Tall"], "correcta": 2},
-	{"pregunta": "Translate: 'HERMANO'", "opciones": ["Sister", "Brother", "Father", "Mother"], "correcta": 1},
-	{"pregunta": "'We ___ to the park tomorrow'", "opciones": ["go", "goes", "will go", "going"], "correcta": 2},
-	{"pregunta": "What does 'TREE' mean?", "opciones": ["Flor", "Árbol", "Hierba", "Hoja"], "correcta": 1},
-	{"pregunta": "'Can you ___ me a favor?'", "opciones": ["make", "do", "give", "take"], "correcta": 1},
-	{"pregunta": "What's the past of 'Buy'?", "opciones": ["Buyed", "Bought", "Buied", "Buying"], "correcta": 1},
-	{"pregunta": "Opposite of 'FAST'?", "opciones": ["Quick", "Rapid", "Slow", "Speed"], "correcta": 2},
-	{"pregunta": "'There ___ many people here'", "opciones": ["is", "am", "are", "be"], "correcta": 2},
-	{"pregunta": "What does 'RAIN' mean?", "opciones": ["Sol", "Nieve", "Lluvia", "Viento"], "correcta": 2},
-	{"pregunta": "'I ___ to the gym every Monday'", "opciones": ["goes", "go", "going", "gone"], "correcta": 1},
-	{"pregunta": "What's 'MARIPOSA' in English?", "opciones": ["Bird", "Bee", "Butterfly", "Dragonfly"], "correcta": 2},
-	{"pregunta": "'He ___ never been to Paris'", "opciones": ["have", "has", "had", "is"], "correcta": 1},
-	{"pregunta": "Synonym of 'BEAUTIFUL'?", "opciones": ["Ugly", "Pretty", "Bad", "Dark"], "correcta": 1},
-	{"pregunta": "'We need ___ buy milk'", "opciones": ["for", "at", "to", "in"], "correcta": 2},
-	{"pregunta": "What does 'CLOUD' mean?", "opciones": ["Cielo", "Nube", "Estrella", "Luna"], "correcta": 1},
-	{"pregunta": "Past of 'Write'?", "opciones": ["Writed", "Written", "Wrote", "Writing"], "correcta": 2},
-	{"pregunta": "'She ___ like chocolate'", "opciones": ["don't", "doesn't", "isn't", "aren't"], "correcta": 1},
-	{"pregunta": "What does 'SMILE' mean?", "opciones": ["Llorar", "Gritar", "Sonreír", "Dormir"], "correcta": 2}
-]
+var preguntas_base = []
 
 var preguntas_activas = []
 
@@ -154,6 +136,7 @@ func reproducir_ui(sonido):
 
 # ====== INICIO ======
 func _ready():
+	cargar_preguntas()
 	preguntas_activas = preguntas_base.duplicate(true)
 	crear_matriz_tablero()
 	crear_matriz_fichas_visuales()
@@ -166,6 +149,34 @@ func _ready():
 		temporizador.timeout.connect(_on_tiempo_agotado)
 	
 	iniciar_turno()
+
+func cargar_preguntas():
+	var archivo = FileAccess.open("res://datos/preguntas.json", FileAccess.READ)
+	if archivo == null:
+		print("ERROR: No se pudo abrir preguntas.json")
+		# Preguntas de emergencia por si falla
+		preguntas_base = [
+			{"pregunta": "What does 'CAT' mean?", "opciones": ["Perro", "Gato", "Ratón", "Pájaro"], "correcta": 1}
+		]
+		return
+	var contenido = archivo.get_as_text()
+	archivo.close()
+	
+	var json = JSON.new()
+	var resultado = json.parse(contenido)
+	
+	if resultado != OK:
+		print("ERROR: JSON mal formateado")
+		return
+	
+	var datos = json.data
+	var dificultad = Global.dificultad
+	
+	if datos.has(dificultad):
+		preguntas_base = datos[dificultad]
+		print("Cargadas ", preguntas_base.size(), " preguntas de nivel: ", dificultad)
+	else:
+		print("ERROR: Dificultad '", dificultad, "' no encontrada en JSON")
 
 func crear_matriz_tablero():
 	matriz_tablero = []
@@ -194,21 +205,21 @@ func dibujar_tablero():
 	
 	var ancho_tablero = COLUMNAS * (TAMANO_CELDA + ESPACIO) + ESPACIO
 	var alto_tablero = FILAS * (TAMANO_CELDA + ESPACIO) + ESPACIO
-	
 	var fondo_tablero = ColorRect.new()
 	fondo_tablero.name = "FondoTablero"
 	fondo_tablero.size = Vector2(ancho_tablero, alto_tablero)
 	fondo_tablero.position = Vector2(tablero_x, tablero_y)
 	fondo_tablero.color = color_fondo_tablero
 	tablero_visual.add_child(fondo_tablero)
-	
+	# Celdas redondas
 	for x in range(COLUMNAS):
 		for y in range(FILAS):
-			var celda = ColorRect.new()
+			var celda = CeldaRedonda.new()
 			celda.name = "Celda_" + str(x) + "_" + str(y)
 			celda.size = Vector2(TAMANO_CELDA, TAMANO_CELDA)
 			celda.position = Vector2(celda_pos_x(x), celda_pos_y(y))
-			celda.color = color_celda_vacia
+			celda.color_celda = color_celda_vacia
+			celda.color_tablero = color_fondo_tablero
 			tablero_visual.add_child(celda)
 	
 	for x in range(COLUMNAS):
@@ -243,6 +254,16 @@ func dibujar_tablero():
 	label_turno.add_theme_font_size_override("font_size", 18)
 	label_turno.add_theme_color_override("font_color", Color(1, 1, 1))
 	tablero_visual.add_child(label_turno)
+
+func _dibujar_celda(celda):
+	var radio = celda.size.x / 2.0
+	var centro = Vector2(radio, radio)
+	var color = celda.get_meta("color_actual")
+	
+	# Antialiasing manual: dibujar un círculo ligeramente más grande con color del tablero
+	draw_circle(centro, radio + 1, color_fondo_tablero)
+	# Círculo principal con más definición
+	draw_circle(centro, radio, color)
 
 # ====== NOTIFICACIÓN DE PODER ======
 func crear_notificacion():
@@ -297,6 +318,7 @@ func crear_interfaz_poderes():
 	boton_normal.position = Vector2(inicio_x, margen_y)
 	boton_normal.size = Vector2(boton_ancho, boton_alto)
 	boton_normal.pressed.connect(_on_seleccionar_normal)
+	agregar_hover_sonido_juego(boton_normal)
 	panel_poderes.add_child(boton_normal)
 	
 	boton_bomba = Button.new()
@@ -304,6 +326,7 @@ func crear_interfaz_poderes():
 	boton_bomba.position = Vector2(inicio_x + (boton_ancho + separacion), margen_y)
 	boton_bomba.size = Vector2(boton_ancho, boton_alto)
 	boton_bomba.pressed.connect(_on_seleccionar_bomba)
+	agregar_hover_sonido_juego(boton_bomba)
 	panel_poderes.add_child(boton_bomba)
 	
 	boton_hielo = Button.new()
@@ -311,6 +334,7 @@ func crear_interfaz_poderes():
 	boton_hielo.position = Vector2(inicio_x + (boton_ancho + separacion) * 2, margen_y)
 	boton_hielo.size = Vector2(boton_ancho, boton_alto)
 	boton_hielo.pressed.connect(_on_seleccionar_hielo)
+	agregar_hover_sonido_juego(boton_hielo)
 	panel_poderes.add_child(boton_hielo)
 	
 	boton_cancelar = Button.new()
@@ -318,6 +342,7 @@ func crear_interfaz_poderes():
 	boton_cancelar.position = Vector2(inicio_x + (boton_ancho + separacion) * 3, margen_y)
 	boton_cancelar.size = Vector2(boton_ancho, boton_alto)
 	boton_cancelar.pressed.connect(_on_cancelar_poder)
+	agregar_hover_sonido_juego(boton_cancelar)
 	boton_cancelar.hide()
 	panel_poderes.add_child(boton_cancelar)
 	
@@ -341,6 +366,7 @@ func crear_interfaz_poderes():
 	var estilo_hover = StyleBoxFlat.new()
 	estilo_hover.bg_color = Color(0.15, 0.75, 0.3)  # Verde más brillante
 	boton_reiniciar.pressed.connect(_on_reiniciar)
+	agregar_hover_sonido_juego(boton_reiniciar)
 	boton_reiniciar.add_theme_stylebox_override("hover", estilo_hover)
 	
 	var estilo_pressed = StyleBoxFlat.new()
@@ -510,6 +536,7 @@ func conectar_botones_trivia():
 	var botones = contenedor_botones.get_children()
 	for i in range(botones.size()):
 		botones[i].pressed.connect(_on_boton_trivia_presionado.bind(i))
+		agregar_hover_sonido_juego(botones[i])
 
 # ====== TURNOS ======
 func iniciar_turno():
@@ -517,7 +544,8 @@ func iniciar_turno():
 		return
 	
 	verificar_descongelamiento()
-	
+	actualizar_opacidad_jugadores()
+
 	fase_juego = "PREGUNTA"
 	pantalla_pregunta.show()
 	ocultar_botones_poder()
@@ -527,6 +555,14 @@ func iniciar_turno():
 		label_turno.text = "Turno: Jugador " + str(turno_actual) + " " + color_txt
 	
 	mostrar_pregunta_aleatoria()
+
+func actualizar_opacidad_jugadores():
+	if turno_actual == 1:
+		label_inventario_j1.modulate = Color(1, 1, 1, 1.0)   # Totalmente visible
+		label_inventario_j2.modulate = Color(1, 1, 1, 0.3)   # Transparente
+	else:
+		label_inventario_j1.modulate = Color(1, 1, 1, 0.3)   # Transparente
+		label_inventario_j2.modulate = Color(1, 1, 1, 1.0)   # Totalmente visible
 
 func verificar_descongelamiento():
 	var columnas_a_quitar = []
@@ -541,8 +577,9 @@ func verificar_descongelamiento():
 		for fila in range(FILAS):
 			var celda = tablero_visual.get_node_or_null("Celda_" + str(col) + "_" + str(fila))
 			if celda and matriz_tablero[col][fila] == 0:
-				celda.color = color_celda_vacia
-		
+				celda.set_color(color_celda_vacia)
+
+				
 		var flecha = tablero_visual.get_node_or_null("Flecha_" + str(col))
 		if flecha:
 			flecha.text = "▼"
@@ -606,6 +643,7 @@ func _on_tiempo_agotado():
 	boton_continuar.size = Vector2(200, 50)
 	boton_continuar.add_theme_font_size_override("font_size", 18)
 	boton_continuar.pressed.connect(_on_continuar_despues_error.bind(boton_continuar))
+	agregar_hover_sonido_juego(boton_continuar)
 	pantalla_pregunta.add_child(boton_continuar)
 
 func manejar_acierto():
@@ -674,6 +712,7 @@ func mostrar_mensaje_error():
 	boton_continuar.size = Vector2(200, 50)
 	boton_continuar.add_theme_font_size_override("font_size", 18)
 	boton_continuar.pressed.connect(_on_continuar_despues_error.bind(boton_continuar))
+	agregar_hover_sonido_juego(boton_continuar)
 	pantalla_pregunta.add_child(boton_continuar)
 
 func _on_continuar_despues_error(boton):
@@ -695,15 +734,15 @@ func lanzar_ficha(columna):
 	matriz_tablero[columna][fila] = turno_actual
 	
 	var nueva_ficha = ficha_escena.instantiate()
-	nueva_ficha.position = Vector2(celda_pos_x(columna), tablero_y - TAMANO_CELDA)
-	nueva_ficha.size = Vector2(TAMANO_CELDA, TAMANO_CELDA)
+	nueva_ficha.position = Vector2(celda_pos_x(columna) - 1, tablero_y - TAMANO_CELDA)
+	nueva_ficha.size = Vector2(TAMANO_CELDA + 2, TAMANO_CELDA + 2)
 	nueva_ficha.configurar(turno_actual)
 	#nueva_ficha.queue_redraw()  # Forzar que se dibuje el círculo
 	tablero_visual.add_child(nueva_ficha)
 	
 	fichas_visuales[columna][fila] = nueva_ficha
 	
-	var destino_y = celda_pos_y(fila)
+	var destino_y = celda_pos_y(fila) - 1
 	nueva_ficha.animar_caida(destino_y)
 	
 	# Sonido de ficha cayendo según la fila
@@ -749,7 +788,7 @@ func usar_bomba(columna, fila):
 	
 	if fichas_visuales[columna][fila] != null:
 		var ficha = fichas_visuales[columna][fila]
-		crear_explosion(ficha.position + Vector2(TAMANO_CELDA / 2, TAMANO_CELDA / 2))
+		crear_explosion(ficha.position + Vector2(float(TAMANO_CELDA / 2), float(TAMANO_CELDA / 2)))
 		reproducir_efecto(snd_explosion)
 		ficha.queue_free()
 		fichas_visuales[columna][fila] = null
@@ -797,7 +836,7 @@ func aplicar_gravedad(columna):
 				fichas_visuales[columna][y] = null
 				
 				if ficha != null:
-					var destino_y = celda_pos_y(y + 1)
+					var destino_y = celda_pos_y(y + 1) - 1
 					var tween = create_tween()
 					tween.tween_property(ficha, "position:y", destino_y, 0.2).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
 				
@@ -853,7 +892,7 @@ func usar_hielo(columna):
 	for fila in range(FILAS):
 		var celda = tablero_visual.get_node_or_null("Celda_" + str(columna) + "_" + str(fila))
 		if celda and matriz_tablero[columna][fila] == 0:
-			celda.color = color_celda_congelada
+			celda.set_color(color_celda_congelada)
 	
 	var flecha = tablero_visual.get_node_or_null("Flecha_" + str(columna))
 	if flecha:
@@ -888,25 +927,59 @@ func verificar_victoria(columna, fila, jugador):
 		[Vector2i(1, -1), Vector2i(-1, 1)]
 	]
 	for dir in direcciones:
-		var conteo = 1
-		conteo += contar_dir(columna, fila, dir[0].x, dir[0].y, jugador)
-		conteo += contar_dir(columna, fila, dir[1].x, dir[1].y, jugador)
-		if conteo >= 4:
+		var fichas_linea = [Vector2i(columna, fila)]
+		fichas_linea += obtener_fichas_en_direccion(columna, fila, dir[0].x, dir[0].y, jugador)
+		fichas_linea += obtener_fichas_en_direccion(columna, fila, dir[1].x, dir[1].y, jugador)
+		if fichas_linea.size() >= 4:
+			fichas_ganadoras = fichas_linea
 			return true
 	return false
 
-func contar_dir(col, fil, dx, dy, jugador):
-	var conteo = 0
+func animar_fichas_ganadoras():
+	for pos in fichas_ganadoras:
+		var ficha = fichas_visuales[pos.x][pos.y]
+		if ficha != null:
+			var tween = create_tween().set_loops(6)
+			tween.tween_property(ficha, "modulate:a", 0.3, 0.4)
+			tween.tween_property(ficha, "modulate:a", 1.0, 0.4)
+
+func crear_confeti():
+	var colores_confeti = [
+		Color(1, 0, 0), Color(0, 1, 0), Color(0, 0, 1),
+		Color(1, 1, 0), Color(1, 0, 1), Color(0, 1, 1),
+		Color(1, 0.5, 0), Color(0.5, 0, 1)
+	]
+	
+	for i in range(40):
+		var confeti = ColorRect.new()
+		confeti.size = Vector2(randf_range(6, 14), randf_range(6, 14))
+		confeti.color = colores_confeti[randi() % colores_confeti.size()]
+		confeti.position = Vector2(randf_range(200, 950), -20)
+		confeti.z_index = 20
+		tablero_visual.add_child(confeti)
+		
+		var tween = create_tween()
+		var destino_x = confeti.position.x + randf_range(-100, 100)
+		var destino_y = randf_range(400, 700)
+		var duracion = randf_range(1.0, 2.5)
+		
+		tween.tween_property(confeti, "position", Vector2(destino_x, destino_y), duracion).set_ease(Tween.EASE_OUT)
+		tween.parallel().tween_property(confeti, "rotation", randf_range(-10, 10), duracion)
+		tween.tween_property(confeti, "modulate:a", 0.0, 0.5)
+		tween.tween_callback(confeti.queue_free)
+
+func obtener_fichas_en_direccion(col, fil, dx, dy, jugador):
+	var fichas = []
 	var x = col + dx
 	var y = fil + dy
 	while x >= 0 and x < COLUMNAS and y >= 0 and y < FILAS:
 		if matriz_tablero[x][y] == jugador:
-			conteo += 1
+			fichas.append(Vector2i(x, y))
 			x += dx
 			y += dy
 		else:
 			break
-	return conteo
+	return fichas
 
 func tablero_lleno():
 	for x in range(COLUMNAS):
@@ -916,7 +989,12 @@ func tablero_lleno():
 
 # ====== RESULTADOS ======
 func mostrar_victoria():
-	texto_pregunta.text = "🏆 ¡JUGADOR " + str(turno_actual) + " GANA! 🏆"
+	animar_fichas_ganadoras()
+	crear_confeti()
+	await get_tree().create_timer(2).timeout
+	
+	var ganador_texto = "🔴 ROJO" if turno_actual == 1 else "🟡 AMARILLO"
+	texto_pregunta.text = "🏆 ¡JUGADOR " + str(turno_actual) + " GANA! 🏆\n" + ganador_texto
 	texto_reloj.text = "🎉"
 	for boton in contenedor_botones.get_children():
 		boton.hide()
@@ -934,6 +1012,7 @@ func mostrar_empate():
 # ====== REINICIAR JUEGO ======
 func _on_reiniciar():
 	reproducir_efecto(snd_retirar_fichas)
+	await get_tree().create_timer(1.0).timeout  # Esperar a que suene
 	get_tree().change_scene_to_file("res://menu_principal.tscn")
 	# Limpiar todo
 	#boton_reiniciar.hide()
@@ -977,3 +1056,10 @@ func _on_reiniciar():
 func cambiar_turno():
 	turno_actual = 2 if turno_actual == 1 else 1
 	iniciar_turno()
+
+func agregar_hover_sonido_juego(boton):
+	boton.mouse_entered.connect(_on_hover_boton_juego)
+
+func _on_hover_boton_juego():
+	sonido_ui.stream = preload("res://sonidos/hover1.wav")
+	sonido_ui.play()

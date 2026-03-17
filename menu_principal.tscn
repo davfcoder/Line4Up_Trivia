@@ -29,12 +29,9 @@ layout_mode = 0
 offset_right = 8.0
 offset_bottom = 8.0
 
-[node name="BotonInstrucciones" type="Button" parent="." unique_id=1467101746]
-layout_mode = 0
-offset_right = 8.0
-offset_bottom = 8.0
-
 [node name="BotonSalir" type="Button" parent="." unique_id=597951655]
 layout_mode = 0
 offset_right = 8.0
 offset_bottom = 8.0
+
+[node name="SonidoHover" type="AudioStreamPlayer" parent="." unique_id=377170149]

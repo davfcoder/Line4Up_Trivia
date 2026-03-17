@@ -10,10 +10,14 @@ config_version=5
 
 [application]
 
-config/name="Line4UpTrivia"
+config/name="LineUp4Trivia"
 run/main_scene="uid://io76jp65y2tv"
 config/features=PackedStringArray("4.6", "Mobile")
 config/icon="res://icon.svg"
+
+[autoload]
+
+Global="*uid://cblh7afsjdfp5"
 
 [physics]
 
