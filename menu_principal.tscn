@@ -35,3 +35,5 @@ offset_right = 8.0
 offset_bottom = 8.0
 
 [node name="SonidoHover" type="AudioStreamPlayer" parent="." unique_id=377170149]
+
+[node name="AudioStreamPlayer" type="AudioStreamPlayer" parent="." unique_id=598645644]

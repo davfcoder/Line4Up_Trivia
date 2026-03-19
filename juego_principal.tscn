@@ -87,8 +87,8 @@ one_shot = true
 
 [node name="TableroVisual" type="Node2D" parent="." unique_id=111692565]
 
-[node name="SonidoFicha" type="AudioStreamPlayer2D" parent="." unique_id=865014239]
+[node name="SonidoFicha" type="AudioStreamPlayer" parent="." unique_id=1558628521]
 
-[node name="SonidoEfectos" type="AudioStreamPlayer2D" parent="." unique_id=1179900867]
+[node name="SonidoEfectos" type="AudioStreamPlayer" parent="." unique_id=1688921122]
 
-[node name="SonidoUI" type="AudioStreamPlayer2D" parent="." unique_id=1002432393]
+[node name="SonidoUI" type="AudioStreamPlayer" parent="." unique_id=1538265214]

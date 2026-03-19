@@ -14,6 +14,8 @@ class CeldaRedonda extends Control:
 		var centro = Vector2(radio, radio)
 		draw_circle(centro, radio, color_celda)
 
+var panel_pausa = null
+var juego_pausado = false
 
 # ====== REFERENCIAS A LOS NODOS ======
 @onready var pantalla_pregunta = $CapaUI/PantallaPregunta
@@ -147,7 +149,7 @@ func _ready():
 	
 	if not temporizador.timeout.is_connected(_on_tiempo_agotado):
 		temporizador.timeout.connect(_on_tiempo_agotado)
-	
+	crear_menu_pausa()
 	iniciar_turno()
 
 func cargar_preguntas():
@@ -467,6 +469,14 @@ func _process(_delta):
 
 # ====== DETECTAR CLICS Y TECLAS ======
 func _input(event):
+	if event is InputEventKey and event.pressed and event.keycode == KEY_P:
+		toggle_pausa()
+		return
+	
+	# Si está pausado, no procesar nada más
+	if juego_pausado:
+		return
+	
 	if juego_terminado:
 		return
 	
@@ -1063,3 +1073,129 @@ func agregar_hover_sonido_juego(boton):
 func _on_hover_boton_juego():
 	sonido_ui.stream = preload("res://sonidos/hover1.wav")
 	sonido_ui.play()
+
+func crear_menu_pausa():
+	panel_pausa = Control.new()
+	panel_pausa.name = "PanelPausa"
+	panel_pausa.z_index = 100
+	panel_pausa.hide()
+	capa_ui.add_child(panel_pausa)
+	
+	# Fondo oscuro
+	var fondo = ColorRect.new()
+	fondo.position = Vector2(0, 0)
+	fondo.size = Vector2(1152, 648)
+	fondo.color = Color(0, 0, 0, 0.75)
+	panel_pausa.add_child(fondo)
+	
+	# Ventana central
+	var ventana = Panel.new()
+	ventana.position = Vector2(376, 150)
+	ventana.size = Vector2(400, 350)
+	var estilo = StyleBoxFlat.new()
+	estilo.bg_color = Color(0.08, 0.08, 0.2, 0.98)
+	estilo.border_width_bottom = 3
+	estilo.border_width_top = 3
+	estilo.border_width_left = 3
+	estilo.border_width_right = 3
+	estilo.border_color = Color(0.4, 0.5, 0.8)
+	estilo.corner_radius_top_left = 15
+	estilo.corner_radius_top_right = 15
+	estilo.corner_radius_bottom_left = 15
+	estilo.corner_radius_bottom_right = 15
+	ventana.add_theme_stylebox_override("panel", estilo)
+	panel_pausa.add_child(ventana)
+	
+	# Título
+	var titulo = Label.new()
+	titulo.text = "⏸️  PAUSA"
+	titulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	titulo.position = Vector2(100, 20)
+	titulo.size = Vector2(200, 40)
+	titulo.add_theme_font_size_override("font_size", 32)
+	titulo.add_theme_color_override("font_color", Color(1, 0.9, 0.2))
+	ventana.add_child(titulo)
+	
+	# Botón Continuar
+	var btn_continuar = Button.new()
+	btn_continuar.text = "▶️  Continuar"
+	btn_continuar.position = Vector2(100, 90)
+	btn_continuar.size = Vector2(200, 50)
+	btn_continuar.add_theme_font_size_override("font_size", 20)
+	aplicar_estilo_boton_juego(btn_continuar, Color(0.1, 0.5, 0.2), Color(0.3, 1, 0.4))
+	btn_continuar.pressed.connect(_on_pausa_continuar)
+	agregar_hover_sonido_juego(btn_continuar)
+	ventana.add_child(btn_continuar)
+	
+	# Botón Reiniciar
+	var btn_reiniciar_pausa = Button.new()
+	btn_reiniciar_pausa.text = "🔄  Reiniciar"
+	btn_reiniciar_pausa.position = Vector2(100, 160)
+	btn_reiniciar_pausa.size = Vector2(200, 50)
+	btn_reiniciar_pausa.add_theme_font_size_override("font_size", 20)
+	aplicar_estilo_boton_juego(btn_reiniciar_pausa, Color(0.4, 0.3, 0.05), Color(0.8, 0.6, 0.1))
+	btn_reiniciar_pausa.pressed.connect(_on_pausa_reiniciar)
+	agregar_hover_sonido_juego(btn_reiniciar_pausa)
+	ventana.add_child(btn_reiniciar_pausa)
+	
+	# Botón Menú Principal
+	var btn_menu = Button.new()
+	btn_menu.text = "🏠  Menú Principal"
+	btn_menu.position = Vector2(100, 230)
+	btn_menu.size = Vector2(200, 50)
+	btn_menu.add_theme_font_size_override("font_size", 20)
+	aplicar_estilo_boton_juego(btn_menu, Color(0.5, 0.1, 0.1), Color(1, 0.3, 0.3))
+	btn_menu.pressed.connect(_on_pausa_menu)
+	agregar_hover_sonido_juego(btn_menu)
+	ventana.add_child(btn_menu)
+	
+	panel_pausa.process_mode = Node.PROCESS_MODE_ALWAYS
+
+func aplicar_estilo_boton_juego(boton, color_fondo, color_borde):
+	var estilo = StyleBoxFlat.new()
+	estilo.bg_color = color_fondo
+	estilo.border_width_bottom = 3
+	estilo.border_width_top = 3
+	estilo.border_width_left = 3
+	estilo.border_width_right = 3
+	estilo.border_color = color_borde
+	estilo.corner_radius_top_left = 10
+	estilo.corner_radius_top_right = 10
+	estilo.corner_radius_bottom_left = 10
+	estilo.corner_radius_bottom_right = 10
+	boton.add_theme_stylebox_override("normal", estilo)
+	
+	var estilo_hover = estilo.duplicate()
+	estilo_hover.bg_color = Color(color_fondo.r + 0.1, color_fondo.g + 0.1, color_fondo.b + 0.1)
+	boton.add_theme_stylebox_override("hover", estilo_hover)
+	
+	boton.add_theme_color_override("font_color", Color(1, 1, 1))
+
+func _on_pausa_continuar():
+	juego_pausado = false
+	panel_pausa.hide()
+	get_tree().paused = false
+
+func _on_pausa_reiniciar():
+	juego_pausado = false
+	panel_pausa.hide()
+	get_tree().paused = false
+	_on_reiniciar()
+
+func _on_pausa_menu():
+	juego_pausado = false
+	get_tree().paused = false
+	get_tree().change_scene_to_file("res://menu_principal.tscn")
+
+func toggle_pausa():
+	if juego_terminado:
+		return
+	
+	juego_pausado = !juego_pausado
+	
+	if juego_pausado:
+		panel_pausa.show()
+		get_tree().paused = true
+	else:
+		panel_pausa.hide()
+		get_tree().paused = false
