@@ -1,7 +1,36 @@
 extends Node2D
 
-# ====== CLASE PARA CELDAS REDONDAS ======
-# ====== CLASE PARA CELDAS REDONDAS ======
+# ====== CLASE PARA ICONO FULLSCREEN DINÁMICO ======
+class IconoFullscreen extends Control:
+	var is_fullscreen = false
+	
+	func actualizar_estado(estado):
+		is_fullscreen = estado
+		queue_redraw()
+
+	func _draw():
+		var c = Color(1, 1, 1, 0.9)
+		if not is_fullscreen:
+			# Expandir (Esquinas apuntando hacia AFUERA ⌜ ⌝ ⌞ ⌟)
+			draw_rect(Rect2(12, 12, 9, 3), c)
+			draw_rect(Rect2(12, 12, 3, 9), c)
+			draw_rect(Rect2(24, 12, 9, 3), c)
+			draw_rect(Rect2(30, 12, 3, 9), c)
+			draw_rect(Rect2(12, 30, 9, 3), c)
+			draw_rect(Rect2(12, 24, 3, 9), c)
+			draw_rect(Rect2(24, 30, 9, 3), c)
+			draw_rect(Rect2(30, 24, 3, 9), c)
+		else:
+			# Contraer (Esquinas apuntando hacia ADENTRO ⌟ ⌞ ⌝ ⌜)
+			draw_rect(Rect2(13, 19, 9, 3), c)
+			draw_rect(Rect2(19, 13, 3, 9), c)
+			draw_rect(Rect2(23, 19, 9, 3), c)
+			draw_rect(Rect2(23, 13, 3, 9), c)
+			draw_rect(Rect2(13, 23, 9, 3), c)
+			draw_rect(Rect2(19, 23, 3, 9), c)
+			draw_rect(Rect2(23, 23, 9, 3), c)
+			draw_rect(Rect2(23, 23, 3, 9), c)
+
 # ====== CLASE PARA CELDAS REDONDAS ======
 class CeldaRedonda extends Control:
 	var color_celda = Color(0, 0, 0, 0) # TOTALMENTE TRANSPARENTE
@@ -101,6 +130,9 @@ var snd_retirar_fichas = preload("res://sonidos/retirar_todas_fichas.wav")
 var snd_ficha_seleccionada = preload("res://sonidos/ficha_seleccionada.wav")
 var snd_victoria = preload("res://sonidos/clapping.wav")
 var snd_empate = preload("res://sonidos/draw.wav")
+var snd_tick = preload("res://sonidos/tick.wav")
+var ultimo_segundo_reloj = -1
+var reproductor_tick = AudioStreamPlayer.new() # REPRODUCTOR GLOBAL
 
 # Sonidos de trivia
 var snd_correcto = preload("res://sonidos/correcto.wav")
@@ -208,12 +240,41 @@ func _ready():
 	# Botón de música
 	var btn_musica = Global.crear_boton_musica(capa_ui, _on_toggle_musica_juego)
 	btn_musica.position = Vector2(60, 10)  # Al lado del botón de pausa
+	
+	# --- BOTÓN PANTALLA COMPLETA ---
+	var btn_fs = Button.new()
+	btn_fs.name = "BotonFullscreen"
+	btn_fs.position = Vector2(110, 10) # Al lado del botón de música
+	btn_fs.size = Vector2(45, 45)
+	btn_fs.z_index = 50
+	
+	# Le aplicamos el mismo estilo pixel retro oscuro
+	var estilos_fs = TemaPixel.crear_boton_pixel(Color(0.12, 0.12, 0.25, 0.85), Color(0.35, 0.4, 0.7))
+	btn_fs.add_theme_stylebox_override("normal", estilos_fs["normal"])
+	btn_fs.add_theme_stylebox_override("hover", estilos_fs["hover"])
+	btn_fs.add_theme_stylebox_override("pressed", estilos_fs["pressed"])
+	
+	btn_fs.pressed.connect(_on_toggle_fullscreen)
+	agregar_hover_sonido_juego(btn_fs)
+	
+	# Agregamos el icono dibujado
+	var icono_fs = IconoFullscreen.new()
+	icono_fs.name = "IconoFS"
+	icono_fs.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	btn_fs.add_child(icono_fs)
+	add_child(btn_fs)
+	
+	# Sincronizar el dibujo del icono con el estado actual de la ventana al abrir el juego
+	var modo_actual = DisplayServer.window_get_mode()
+	icono_fs.actualizar_estado(modo_actual == DisplayServer.WINDOW_MODE_FULLSCREEN or modo_actual == DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN)
+	
 	# Música del juego
 	$MusicaJuego.stream = preload("res://musica/game_theme.wav")
 	$MusicaJuego.volume_db = -12
 	if Global.musica_activa:
 		$MusicaJuego.play()
 	$MusicaJuego.finished.connect(_on_musica_terminada)
+	add_child(reproductor_tick)
 	iniciar_turno()
 
 func _on_toggle_musica_juego():
@@ -674,9 +735,25 @@ func actualizar_preview(mouse_x):
 	preview_ficha.visible = true
 	
 # ====== RELOJ VISUAL ======
+# ====== RELOJ VISUAL ======
 func _process(_delta):
 	if fase_juego == "PREGUNTA" and temporizador.time_left > 0:
-		texto_reloj.text = str(int(temporizador.time_left))
+		var tiempo_restante = int(ceil(temporizador.time_left))
+		texto_reloj.text = str(tiempo_restante)
+		
+		# --- NUEVO: CUENTA REGRESIVA ---
+		if tiempo_restante <= 6 and tiempo_restante != ultimo_segundo_reloj:
+			# Si justo acabamos de entrar al segundo 6, reproducimos el audio largo UNA vez
+			if tiempo_restante == 6:
+				reproductor_tick.stream = snd_tick
+				reproductor_tick.play()
+
+			ultimo_segundo_reloj = tiempo_restante
+			# Efecto de tensión: Cambia de amarillo a naranja, y a rojo en los últimos 3 segundos
+			if tiempo_restante <= 3:
+				texto_reloj.add_theme_color_override("font_color", Color(1, 0.2, 0.2)) # Rojo intenso
+			else:
+				texto_reloj.add_theme_color_override("font_color", Color(0.878, 0.146, 0.471, 1.0)) # Naranja
 	
 	if fase_juego == "LANZAMIENTO" and not juego_pausado:
 		var mouse_pos = get_viewport().get_mouse_position()
@@ -686,15 +763,12 @@ func _process(_delta):
 				preview_ficha = null
 				crear_preview_ficha()
 			actualizar_preview(mouse_pos.x)
-			# Si había cursor de poder, destruirlo
 			if _cursor_tipo_actual != "":
 				ocultar_cursor_poder()
 				_cursor_tipo_actual = ""
 		else:
-			# Ocultar preview de ficha
 			if preview_ficha != null:
 				preview_ficha.visible = false
-			# Si cambió el tipo de poder, recrear cursor
 			if _cursor_tipo_actual != poder_seleccionado:
 				ocultar_cursor_poder()
 				_cursor_tipo_actual = poder_seleccionado
@@ -710,6 +784,11 @@ func _process(_delta):
 func _input(event):
 	if event is InputEventKey and event.pressed and event.keycode == KEY_P:
 		toggle_pausa()
+		return
+	
+	# --- Alternar Pantalla Completa con F11 ---
+	if event is InputEventKey and event.pressed and event.keycode == KEY_F11:
+		_on_toggle_fullscreen()
 		return
 	
 	# Si está pausado, no procesar nada más
@@ -794,7 +873,12 @@ func iniciar_turno():
 		
 	destruir_preview()
 	ocultar_cursor_poder()
-	verificar_descongelamiento()
+	var se_descongelo_algo = verificar_descongelamiento()
+	if se_descongelo_algo:
+			# Si tras descongelar alguien tiene 4 en línea, el juego termina inmediatamente
+			if verificar_victoria_completa():
+				return
+
 	actualizar_opacidad_jugadores()
 
 	fase_juego = "PREGUNTA"
@@ -822,6 +906,8 @@ func verificar_descongelamiento():
 		if info["puesto_por"] == turno_actual:
 			columnas_a_quitar.append(info)
 	
+	var hubo_descongelamiento = columnas_a_quitar.size() > 0
+
 	for info in columnas_a_quitar:
 		var col = info["columna"]
 		
@@ -840,6 +926,8 @@ func verificar_descongelamiento():
 			flecha.add_theme_color_override("font_color", Color(1, 1, 1, 0.6))
 		
 		columnas_congeladas_info.erase(info)
+	return hubo_descongelamiento # Devuelve true si quitó hielo
+
 
 func mostrar_pregunta_aleatoria():
 	if preguntas_activas.size() == 0:
@@ -857,6 +945,7 @@ func mostrar_pregunta_aleatoria():
 	TemaPixel.aplicar_fuente_label(texto_pregunta, 15)
 	TemaPixel.aplicar_fuente_label(texto_reloj, 23)
 	texto_reloj.add_theme_color_override("font_color", Color(1, 0.85, 0.1))
+	ultimo_segundo_reloj = -1
 	
 	var indice = randi() % preguntas_activas.size()
 	# Usamos duplicate(true) para no modificar la base de datos original al mezclar
@@ -892,6 +981,7 @@ func mostrar_pregunta_aleatoria():
 
 # ====== RESPUESTAS ======
 func _on_boton_trivia_presionado(indice_boton):
+	_on_boton_trivia_presionado
 	if fase_juego != "PREGUNTA":
 		return
 	temporizador.stop()
@@ -904,6 +994,7 @@ func _on_boton_trivia_presionado(indice_boton):
 		manejar_fallo()
 
 func _on_tiempo_agotado():
+	reproductor_tick.stop()
 	if fase_juego != "PREGUNTA":
 		return
 	reproducir_ui(snd_incorrecto)
@@ -1140,18 +1231,23 @@ func aplicar_gravedad(columna):
 			await get_tree().create_timer(0.25).timeout
 
 func verificar_victoria_completa():
-	# Revisar TODAS las fichas del jugador actual para ver si alguna forma 4 en línea
-	for x in range(COLUMNAS):
-		for y in range(FILAS):
-			if matriz_tablero[x][y] == turno_actual:
-				if verificar_victoria(x, y, turno_actual):
-					juego_terminado = true
-					fase_juego = "FIN"
-					print("¡¡¡JUGADOR ", turno_actual, " GANA POR GRAVEDAD!!!")
-					mostrar_victoria()
-					return true
-	return false
+	# Revisamos primero al jugador de este turno, y luego al oponente
+	var jugadores_a_revisar = [turno_actual, 2 if turno_actual == 1 else 1]
 	
+	for j in jugadores_a_revisar:
+		for x in range(COLUMNAS):
+			for y in range(FILAS):
+				if matriz_tablero[x][y] == j:
+					if verificar_victoria(x, y, j):
+						# Si alguien gana de forma pasiva, asignamos su turno para la UI
+						turno_actual = j 
+						juego_terminado = true
+						fase_juego = "FIN"
+						print("¡¡¡JUGADOR ", j, " GANA POR EFECTO EN TABLERO!!!")
+						mostrar_victoria()
+						return true
+	return false
+
 func crear_explosion(centro):
 	var ExplosionScript = preload("res://efectos/explosion_pixel.gd")
 	var explosion = Node2D.new()
@@ -1238,6 +1334,10 @@ func buscar_fila_disponible(columna):
 
 # ====== VERIFICAR VICTORIA ======
 func verificar_victoria(columna, fila, jugador):
+	# Si la ficha desde la que revisamos está congelada, no hay victoria posible
+	if esta_columna_congelada(columna):
+		return false
+		
 	var direcciones = [
 		[Vector2i(1, 0), Vector2i(-1, 0)],
 		[Vector2i(0, 1), Vector2i(0, -1)],
@@ -1309,6 +1409,10 @@ func obtener_fichas_en_direccion(col, fil, dx, dy, jugador):
 	var x = col + dx
 	var y = fil + dy
 	while x >= 0 and x < COLUMNAS and y >= 0 and y < FILAS:
+		# Si chocamos con una columna congelada, la línea se rompe de inmediato
+		if esta_columna_congelada(x):
+			break
+		
 		if matriz_tablero[x][y] == jugador:
 			fichas.append(Vector2i(x, y))
 			x += dx
@@ -1627,3 +1731,18 @@ func toggle_pausa():
 	else:
 		panel_pausa.hide()
 		get_tree().paused = false
+
+# ====== PANTALLA COMPLETA ======
+func _on_toggle_fullscreen():
+	var modo_actual = DisplayServer.window_get_mode()
+	var es_full = (modo_actual == DisplayServer.WINDOW_MODE_FULLSCREEN or modo_actual == DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN)
+	
+	if es_full:
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_MAXIMIZED)
+	else:
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+	
+	# Actualizar el dibujo del icono (invertimos 'es_full' porque acabamos de cambiar el estado)
+	var icono = get_node_or_null("BotonFullscreen/IconoFS")
+	if icono:
+		icono.actualizar_estado(!es_full)

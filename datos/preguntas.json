@@ -46,7 +46,7 @@
 		{"pregunta": "How do you say 'VERDE'?", "opciones": ["Blue", "Red", "Green", "Yellow"], "correcta": 2},
 		{"pregunta": "What does 'MOON' mean?", "opciones": ["Sol", "Luna", "Estrella", "Cielo"], "correcta": 1},
 		{"pregunta": "How do you say 'NEGRO'?", "opciones": ["White", "Brown", "Black", "Gray"], "correcta": 2},
-		{"pregunta": "'She's used to ___ early'", "opciones": ["wake", "waking", "woke", "waken"], "correcta": 1},
+		{"pregunta": "'She's used to ___ early'", "opciones": ["wake", "waking", "woke", "waken"], "correcta": 0},
 		{"pregunta": "'Not only ___ smart, but kind'", "opciones": ["she is", "is she", "she was", "was she"], "correcta": 1},
 		{"pregunta": "What does 'FOOD' mean?", "opciones": ["Bebida", "Comida", "Plato", "Mesa"], "correcta": 1},
 		{"pregunta": "What does 'FISH' mean?", "opciones": ["Pollo", "Pez", "Cerdo", "Vaca"], "correcta": 1},

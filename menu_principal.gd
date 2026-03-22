@@ -1,5 +1,36 @@
 extends Control
 
+# ====== CLASE PARA ICONO FULLSCREEN DINÁMICO ======
+class IconoFullscreen extends Control:
+	var is_fullscreen = false
+	
+	func actualizar_estado(estado):
+		is_fullscreen = estado
+		queue_redraw()
+
+	func _draw():
+		var c = Color(1, 1, 1, 0.9)
+		if not is_fullscreen:
+			# Expandir (Esquinas apuntando hacia AFUERA ⌜ ⌝ ⌞ ⌟)
+			draw_rect(Rect2(12, 12, 9, 3), c)
+			draw_rect(Rect2(12, 12, 3, 9), c)
+			draw_rect(Rect2(24, 12, 9, 3), c)
+			draw_rect(Rect2(30, 12, 3, 9), c)
+			draw_rect(Rect2(12, 30, 9, 3), c)
+			draw_rect(Rect2(12, 24, 3, 9), c)
+			draw_rect(Rect2(24, 30, 9, 3), c)
+			draw_rect(Rect2(30, 24, 3, 9), c)
+		else:
+			# Contraer (Esquinas apuntando hacia ADENTRO ⌟ ⌞ ⌝ ⌜)
+			draw_rect(Rect2(13, 19, 9, 3), c)
+			draw_rect(Rect2(19, 13, 3, 9), c)
+			draw_rect(Rect2(23, 19, 9, 3), c)
+			draw_rect(Rect2(23, 13, 3, 9), c)
+			draw_rect(Rect2(13, 23, 9, 3), c)
+			draw_rect(Rect2(19, 23, 3, 9), c)
+			draw_rect(Rect2(23, 23, 9, 3), c)
+			draw_rect(Rect2(23, 23, 3, 9), c)
+
 var panel_instrucciones = null
 var panel_categorias = null
 var panel_creditos = null
@@ -149,6 +180,33 @@ func _ready():
 	$MusicaMenu.finished.connect(_on_musica_menu_terminada)
 	
 	Global.crear_boton_musica(self, _on_toggle_musica)
+	
+		# --- BOTÓN PANTALLA COMPLETA ---
+	var btn_fs = Button.new()
+	btn_fs.name = "BotonFullscreen"
+	btn_fs.position = Vector2(60, 10) # Al lado del botón de música
+	btn_fs.size = Vector2(45, 45)
+	btn_fs.z_index = 50
+	
+	# Le aplicamos el mismo estilo pixel retro oscuro
+	var estilos_fs = TemaPixel.crear_boton_pixel(Color(0.12, 0.12, 0.25, 0.85), Color(0.35, 0.4, 0.7))
+	btn_fs.add_theme_stylebox_override("normal", estilos_fs["normal"])
+	btn_fs.add_theme_stylebox_override("hover", estilos_fs["hover"])
+	btn_fs.add_theme_stylebox_override("pressed", estilos_fs["pressed"])
+	
+	btn_fs.pressed.connect(_on_toggle_fullscreen)
+	agregar_hover_sonido(btn_fs)
+	
+	# Agregamos el icono dibujado
+	var icono_fs = IconoFullscreen.new()
+	icono_fs.name = "IconoFS"
+	icono_fs.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	btn_fs.add_child(icono_fs)
+	add_child(btn_fs)
+	
+	# Sincronizar el dibujo del icono con el estado actual de la ventana al abrir el juego
+	var modo_actual = DisplayServer.window_get_mode()
+	icono_fs.actualizar_estado(modo_actual == DisplayServer.WINDOW_MODE_FULLSCREEN or modo_actual == DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN)
 	
 	# Auto-abrir categorías si viene de "jugar de nuevo"
 	if Global.abrir_categorias:
@@ -461,3 +519,22 @@ func agregar_hover_sonido(boton):
 func _on_hover_boton():
 	$SonidoHover.stream = preload("res://sonidos/hover1.wav")
 	$SonidoHover.play()
+
+func _on_toggle_fullscreen():
+	var modo_actual = DisplayServer.window_get_mode()
+	var es_full = (modo_actual == DisplayServer.WINDOW_MODE_FULLSCREEN or modo_actual == DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN)
+	
+	if es_full:
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_MAXIMIZED)
+	else:
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+	
+	# Actualizar el dibujo del icono (invertimos 'es_full' porque acabamos de cambiar el estado)
+	var icono = get_node_or_null("BotonFullscreen/IconoFS")
+	if icono:
+		icono.actualizar_estado(!es_full)
+
+func _input(event):
+	# Si presionan F11, se activa la misma función del botón
+	if event is InputEventKey and event.pressed and event.keycode == KEY_F11:
+		_on_toggle_fullscreen()
