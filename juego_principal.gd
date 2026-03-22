@@ -1,21 +1,68 @@
 extends Node2D
 
 # ====== CLASE PARA CELDAS REDONDAS ======
+# ====== CLASE PARA CELDAS REDONDAS ======
+# ====== CLASE PARA CELDAS REDONDAS ======
 class CeldaRedonda extends Control:
-	var color_celda = Color(0.9, 0.9, 0.95)
-	var color_tablero = Color(0.0, 0.2, 0.7)
+	var color_celda = Color(0, 0, 0, 0) # TOTALMENTE TRANSPARENTE
+	var color_tablero = Color(0.08, 0.15, 0.4) 
 	
 	func set_color(nuevo_color):
 		color_celda = nuevo_color
 		queue_redraw()
 	
 	func _draw():
-		var radio = size.x / 2.0
+		var w = size.x
+		var h = size.y
+		var radio = w / 2.0
 		var centro = Vector2(radio, radio)
-		draw_circle(centro, radio, color_celda)
+		var radio_agujero = radio - 6.0 # El tamaño del agujero
+		
+		# --- MAGIA: Dibujar un cuadrado con un agujero transparente ---
+		var puntos = PackedVector2Array()
+		# Borde exterior
+		puntos.push_back(Vector2(0, 0))
+		puntos.push_back(Vector2(w, 0))
+		puntos.push_back(Vector2(w, h))
+		puntos.push_back(Vector2(0, h))
+		puntos.push_back(Vector2(0, 0))
+		# Costura hacia adentro
+		puntos.push_back(Vector2(radio, radio - radio_agujero))
+		# Círculo interior (en sentido contrario para crear el hueco)
+		for i in range(32, -1, -1):
+			var angle = (i / 32.0) * TAU - (PI / 2.0)
+			puntos.push_back(centro + Vector2(cos(angle), sin(angle)) * radio_agujero)
+		# Cerrar costura
+		puntos.push_back(Vector2(0, 0))
+		
+		# Dibujar el "plástico" del tablero
+		draw_colored_polygon(puntos, color_tablero)
+		
+		# Sombra y luz en el borde del agujero para que parezca 3D
+		draw_arc(centro, radio_agujero, 0, TAU, 32, Color(0.02, 0.05, 0.1), 3.0, true)
+		draw_arc(centro, radio_agujero + 2, 0, TAU, 32, Color(0.2, 0.4, 0.8), 1.0, true)
+		
+		# Tornillos decorativos
+		var c_tornillo = Color(0.02, 0.04, 0.1)
+		draw_rect(Rect2(4, 4, 3, 3), c_tornillo)
+		draw_rect(Rect2(w - 7, 4, 3, 3), c_tornillo)
+		draw_rect(Rect2(4, h - 7, 3, 3), c_tornillo)
+		draw_rect(Rect2(w - 7, h - 7, 3, 3), c_tornillo)
 
+		# Si hay un color (como el hielo), se dibuja translúcido sobre el hueco
+		if color_celda.a > 0:
+			draw_circle(centro, radio_agujero, color_celda)
+
+const TemaPixel = preload("res://efectos/tema_pixel.gd")
+const IconoPixel = preload("res://efectos/icono_pixel.gd")
 var panel_pausa = null
 var juego_pausado = false
+
+# ====== PREVIEW DE FICHA ======
+var preview_ficha = null
+var preview_columna_actual = -1
+var cursor_poder_label = null
+var _cursor_tipo_actual = ""
 
 # ====== REFERENCIAS A LOS NODOS ======
 @onready var pantalla_pregunta = $CapaUI/PantallaPregunta
@@ -52,6 +99,8 @@ var snd_congelado = preload("res://sonidos/congelado.wav")
 var snd_explosion = preload("res://sonidos/explosion.wav")
 var snd_retirar_fichas = preload("res://sonidos/retirar_todas_fichas.wav")
 var snd_ficha_seleccionada = preload("res://sonidos/ficha_seleccionada.wav")
+var snd_victoria = preload("res://sonidos/clapping.wav")
+var snd_empate = preload("res://sonidos/draw.wav")
 
 # Sonidos de trivia
 var snd_correcto = preload("res://sonidos/correcto.wav")
@@ -67,11 +116,11 @@ const ESPACIO = 5
 var tablero_x = 311
 var tablero_y = 145
 
-var color_fondo_tablero = Color(0.0, 0.2, 0.7)
-var color_celda_vacia = Color(0.9, 0.9, 0.95)
-var color_celda_congelada = Color(0.5, 0.85, 1.0)
-var color_fondo_pantalla = Color(0.08, 0.08, 0.14)
-var color_seleccionable = Color(1.0, 0.4, 0.4, 0.5)
+var color_fondo_tablero = Color(0.08, 0.15, 0.4)
+var color_celda_vacia = Color(0, 0, 0, 0) # TRANSPARENTE
+var color_celda_congelada = Color(0.2, 0.6, 0.9, 0.5) # Translúcido
+var color_fondo_pantalla = Color(0.05, 0.05, 0.08)
+var color_seleccionable = Color(1.0, 0.3, 0.3, 0.4)
 
 var matriz_tablero = []
 var fichas_visuales = []
@@ -146,19 +195,47 @@ func _ready():
 	crear_interfaz_poderes()
 	crear_notificacion()
 	conectar_botones_trivia()
+	estilizar_pantalla_pregunta()
 	
 	if not temporizador.timeout.is_connected(_on_tiempo_agotado):
 		temporizador.timeout.connect(_on_tiempo_agotado)
 	crear_menu_pausa()
+	# Reproducir música del juego
+	$MusicaJuego.stream = preload("res://musica/game_theme.wav")
+	$MusicaJuego.volume_db = -12
+	$MusicaJuego.play()
+	$MusicaJuego.finished.connect(_on_musica_terminada)
+	# Botón de música
+	var btn_musica = Global.crear_boton_musica(capa_ui, _on_toggle_musica_juego)
+	btn_musica.position = Vector2(60, 10)  # Al lado del botón de pausa
+	# Música del juego
+	$MusicaJuego.stream = preload("res://musica/game_theme.wav")
+	$MusicaJuego.volume_db = -12
+	if Global.musica_activa:
+		$MusicaJuego.play()
+	$MusicaJuego.finished.connect(_on_musica_terminada)
 	iniciar_turno()
+
+func _on_toggle_musica_juego():
+	Global.musica_activa = !Global.musica_activa
+	var btn = capa_ui.get_node_or_null("BotonMusica")
+	Global.actualizar_boton_musica(btn)
+	
+	if Global.musica_activa:
+		if not $MusicaJuego.playing:
+			$MusicaJuego.play()
+	else:
+		$MusicaJuego.stop()
+
+func _on_musica_terminada():
+	$MusicaJuego.play()
 
 func cargar_preguntas():
 	var archivo = FileAccess.open("res://datos/preguntas.json", FileAccess.READ)
 	if archivo == null:
 		print("ERROR: No se pudo abrir preguntas.json")
-		# Preguntas de emergencia por si falla
 		preguntas_base = [
-			{"pregunta": "What does 'CAT' mean?", "opciones": ["Perro", "Gato", "Ratón", "Pájaro"], "correcta": 1}
+			{"pregunta": "Pregunta de emergencia: ¿Capital de Colombia?", "opciones": ["Medellín", "Bogotá", "Cali", "Cartagena"], "correcta": 1}
 		]
 		return
 	var contenido = archivo.get_as_text()
@@ -172,13 +249,14 @@ func cargar_preguntas():
 		return
 	
 	var datos = json.data
-	var dificultad = Global.dificultad
+	var categoria = Global.categoria
 	
-	if datos.has(dificultad):
-		preguntas_base = datos[dificultad]
-		print("Cargadas ", preguntas_base.size(), " preguntas de nivel: ", dificultad)
+	if datos.has(categoria):
+		preguntas_base = datos[categoria]
+		print("Cargadas ", preguntas_base.size(), " preguntas - Categoría: ", categoria)
 	else:
-		print("ERROR: Dificultad '", dificultad, "' no encontrada en JSON")
+		print("ERROR: Categoría '", categoria, "' no encontrada en JSON")
+
 
 func crear_matriz_tablero():
 	matriz_tablero = []
@@ -197,23 +275,47 @@ func crear_matriz_fichas_visuales():
 		fichas_visuales.append(columna)
 
 # ====== DIBUJAR TABLERO ======
+# ====== DIBUJAR TABLERO ======
 func dibujar_tablero():
+	# 1. Fondo base de la pantalla
 	var fondo_pantalla = ColorRect.new()
 	fondo_pantalla.name = "FondoPantalla"
 	fondo_pantalla.size = Vector2(1152, 648)
 	fondo_pantalla.color = color_fondo_pantalla
-	fondo_pantalla.z_index = -10
+	fondo_pantalla.z_index = -20
 	tablero_visual.add_child(fondo_pantalla)
+	
+	# 2. Fondo animado del juego (Naves y estrellas)
+	var FondoJuegoScript = preload("res://efectos/fondo_juego.gd")
+	var fondo_juego = Node2D.new()
+	fondo_juego.set_script(FondoJuegoScript)
+	fondo_juego.z_index = -15
+	tablero_visual.add_child(fondo_juego)
 	
 	var ancho_tablero = COLUMNAS * (TAMANO_CELDA + ESPACIO) + ESPACIO
 	var alto_tablero = FILAS * (TAMANO_CELDA + ESPACIO) + ESPACIO
-	var fondo_tablero = ColorRect.new()
+	
+	# 3. NUEVO: Cristal oscuro trasero (para que se distingan las fichas)
+	var cristal_trasero = ColorRect.new()
+	cristal_trasero.size = Vector2(ancho_tablero, alto_tablero)
+	cristal_trasero.position = Vector2(tablero_x, tablero_y)
+	cristal_trasero.color = Color(0.0, 0.02, 0.08, 0.65) # Semitransparente oscuro
+	cristal_trasero.z_index = 0 # Detrás de las fichas
+	tablero_visual.add_child(cristal_trasero)
+	
+	# 4. Marco de Neón (Totalmente transparente en el centro)
+	var fondo_tablero = Panel.new()
 	fondo_tablero.name = "FondoTablero"
-	fondo_tablero.size = Vector2(ancho_tablero, alto_tablero)
-	fondo_tablero.position = Vector2(tablero_x, tablero_y)
-	fondo_tablero.color = color_fondo_tablero
+	fondo_tablero.size = Vector2(ancho_tablero + 16, alto_tablero + 16)
+	fondo_tablero.position = Vector2(tablero_x - 8, tablero_y - 8)
+	fondo_tablero.add_theme_stylebox_override("panel", TemaPixel.crear_panel_pixel(
+		Color(0, 0, 0, 0), # <- Alpha cero para no tapar nada
+		Color(0.2, 0.8, 1.0)
+	))
+	fondo_tablero.z_index = 10 # Se dibuja ADELANTE de todo
 	tablero_visual.add_child(fondo_tablero)
-	# Celdas redondas
+	
+	# 5. Celdas con agujeros
 	for x in range(COLUMNAS):
 		for y in range(FILAS):
 			var celda = CeldaRedonda.new()
@@ -222,38 +324,40 @@ func dibujar_tablero():
 			celda.position = Vector2(celda_pos_x(x), celda_pos_y(y))
 			celda.color_celda = color_celda_vacia
 			celda.color_tablero = color_fondo_tablero
+			celda.z_index = 10 # Manda las celdas al FRENTE
 			tablero_visual.add_child(celda)
 	
+	# Flechas e Inventarios (Resto queda igual)
 	for x in range(COLUMNAS):
 		var flecha = Label.new()
 		flecha.name = "Flecha_" + str(x)
 		flecha.text = "▼"
 		flecha.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		flecha.position = Vector2(celda_pos_x(x) + 22, tablero_y - 25)
-		flecha.add_theme_font_size_override("font_size", 20)
-		flecha.add_theme_color_override("font_color", Color(1, 1, 1, 0.6))
+		flecha.position = Vector2(celda_pos_x(x) + 22, tablero_y - 30)
+		TemaPixel.aplicar_fuente_label(flecha, 14)
+		flecha.add_theme_color_override("font_color", Color(0.3, 0.9, 0.8, 0.8))
 		tablero_visual.add_child(flecha)
 	
 	label_inventario_j1 = Label.new()
 	label_inventario_j1.position = Vector2(15, 160)
 	label_inventario_j1.size = Vector2(280, 80)
-	label_inventario_j1.add_theme_font_size_override("font_size", 14)
+	TemaPixel.aplicar_fuente_label(label_inventario_j1, 9)
 	label_inventario_j1.add_theme_color_override("font_color", Color(1, 0.3, 0.3))
 	tablero_visual.add_child(label_inventario_j1)
 	
 	label_inventario_j2 = Label.new()
-	label_inventario_j2.position = Vector2(15, 270)
+	label_inventario_j2.position = Vector2(15, 280)
 	label_inventario_j2.size = Vector2(280, 80)
-	label_inventario_j2.add_theme_font_size_override("font_size", 14)
+	TemaPixel.aplicar_fuente_label(label_inventario_j2, 9)
 	label_inventario_j2.add_theme_color_override("font_color", Color(1, 0.9, 0.2))
 	tablero_visual.add_child(label_inventario_j2)
 	
 	label_turno = Label.new()
 	label_turno.name = "EtiquetaTurno"
 	label_turno.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label_turno.position = Vector2(tablero_x, tablero_y + alto_tablero + 8)
+	label_turno.position = Vector2(tablero_x, tablero_y + alto_tablero + 15)
 	label_turno.size = Vector2(ancho_tablero, 30)
-	label_turno.add_theme_font_size_override("font_size", 18)
+	TemaPixel.aplicar_fuente_label(label_turno, 11)
 	label_turno.add_theme_color_override("font_color", Color(1, 1, 1))
 	tablero_visual.add_child(label_turno)
 
@@ -272,118 +376,138 @@ func crear_notificacion():
 	label_notificacion = Label.new()
 	label_notificacion.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label_notificacion.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label_notificacion.position = Vector2(326, 70)
-	label_notificacion.size = Vector2(500, 40)
-	label_notificacion.add_theme_font_size_override("font_size", 22)
-	label_notificacion.add_theme_color_override("font_color", Color(1, 1, 0))
+	label_notificacion.position = Vector2(226, 65)
+	label_notificacion.size = Vector2(700, 45)
+	TemaPixel.aplicar_fuente_label(label_notificacion, 13)
+	label_notificacion.add_theme_color_override("font_color", Color(1, 1, 0.3))
 	label_notificacion.modulate.a = 0
+	label_notificacion.z_index = 30
 	capa_ui.add_child(label_notificacion)
 
 func mostrar_notificacion(texto):
 	label_notificacion.text = texto
+	# Cancelar cualquier tween anterior
+	var tweens_previos = label_notificacion.get_meta("tween", null)
+	if tweens_previos and tweens_previos.is_valid():
+		tweens_previos.kill()
+	
 	var tween = create_tween()
-	# Aparecer
-	tween.tween_property(label_notificacion, "modulate:a", 1.0, 0.3)
-	# Esperar
+	label_notificacion.set_meta("tween", tween)
+	tween.tween_property(label_notificacion, "modulate:a", 1.0, 0.2)
 	tween.tween_interval(2.0)
-	# Desaparecer
-	tween.tween_property(label_notificacion, "modulate:a", 0.0, 0.5)
+	tween.tween_property(label_notificacion, "modulate:a", 0.0, 0.4)
+
+func estilizar_pantalla_pregunta():
+	TemaPixel.aplicar_fuente_label(texto_pregunta, 15)
+	texto_pregunta.add_theme_color_override("font_color", Color(0.9, 0.9, 1))
+	TemaPixel.aplicar_fuente_label(texto_reloj, 23)
+	texto_reloj.add_theme_color_override("font_color", Color(1, 0.85, 0.1))
+	
+	var botones = contenedor_botones.get_children()
+	for btn in botones:
+		btn.custom_minimum_size = Vector2(0, 45)
+		aplicar_boton_pixel_juego(btn, Color(0.1, 0.1, 0.28), Color(0.3, 0.45, 0.8), 13)
+
+func aplicar_color_pregunta_jugador():
+	var color_fondo: Color
+	var color_borde: Color
+	if turno_actual == 1:
+		color_fondo = Color(0.12, 0.04, 0.04, 0.97)
+		color_borde = Color(0.7, 0.2, 0.2)
+	else:
+		color_fondo = Color(0.12, 0.1, 0.02, 0.97)
+		color_borde = Color(0.7, 0.6, 0.1)
+	
+	if pantalla_pregunta is Panel:
+		pantalla_pregunta.add_theme_stylebox_override("panel", TemaPixel.crear_panel_pixel(color_fondo, color_borde))
 
 # ====== INTERFAZ DE PODERES ======
 func crear_interfaz_poderes():
 	panel_poderes = Panel.new()
 	panel_poderes.position = Vector2(220, 5)
 	panel_poderes.size = Vector2(720, 50)
-	
-	var estilo = StyleBoxFlat.new()
-	estilo.bg_color = Color(0.15, 0.15, 0.25, 0.95)
-	estilo.border_width_bottom = 2
-	estilo.border_width_top = 2
-	estilo.border_width_left = 2
-	estilo.border_width_right = 2
-	estilo.border_color = Color(0.4, 0.5, 0.8)
-	estilo.corner_radius_top_left = 10
-	estilo.corner_radius_top_right = 10
-	estilo.corner_radius_bottom_left = 10
-	estilo.corner_radius_bottom_right = 10
-	panel_poderes.add_theme_stylebox_override("panel", estilo)
+	panel_poderes.add_theme_stylebox_override("panel", TemaPixel.crear_panel_pixel(
+		Color(0.1, 0.1, 0.2, 0.95),
+		Color(0.3, 0.4, 0.7)
+	))
 	capa_ui.add_child(panel_poderes)
 	
-	var boton_ancho = 130
-	var boton_alto = 32
-	var margen_y = 9
+	var boton_ancho = 140
+	var boton_alto = 34
+	var margen_y = 8
 	var inicio_x = 8
 	var separacion = 8
 	
 	boton_normal = Button.new()
-	boton_normal.text = "[1] 🎯 Normal"
+	boton_normal.text = "[1] NORMAL"
 	boton_normal.position = Vector2(inicio_x, margen_y)
 	boton_normal.size = Vector2(boton_ancho, boton_alto)
+	aplicar_boton_pixel_juego(boton_normal, Color(0.1, 0.3, 0.15), Color(0.2, 0.7, 0.3), 9)
 	boton_normal.pressed.connect(_on_seleccionar_normal)
 	agregar_hover_sonido_juego(boton_normal)
 	panel_poderes.add_child(boton_normal)
 	
 	boton_bomba = Button.new()
-	boton_bomba.text = "[2] 💣 Bomba"
+	boton_bomba.text = "[2] BOMBA"
 	boton_bomba.position = Vector2(inicio_x + (boton_ancho + separacion), margen_y)
 	boton_bomba.size = Vector2(boton_ancho, boton_alto)
+	aplicar_boton_pixel_juego(boton_bomba, Color(0.35, 0.15, 0.05), Color(0.9, 0.4, 0.1), 9)
 	boton_bomba.pressed.connect(_on_seleccionar_bomba)
 	agregar_hover_sonido_juego(boton_bomba)
 	panel_poderes.add_child(boton_bomba)
 	
 	boton_hielo = Button.new()
-	boton_hielo.text = "[3] ❄️ Hielo"
+	boton_hielo.text = "[3] HIELO"
 	boton_hielo.position = Vector2(inicio_x + (boton_ancho + separacion) * 2, margen_y)
 	boton_hielo.size = Vector2(boton_ancho, boton_alto)
+	aplicar_boton_pixel_juego(boton_hielo, Color(0.1, 0.2, 0.4), Color(0.3, 0.7, 1), 9)
 	boton_hielo.pressed.connect(_on_seleccionar_hielo)
 	agregar_hover_sonido_juego(boton_hielo)
 	panel_poderes.add_child(boton_hielo)
 	
 	boton_cancelar = Button.new()
-	boton_cancelar.text = "[Esc] Cancelar"
+	boton_cancelar.text = "[ESC]"
 	boton_cancelar.position = Vector2(inicio_x + (boton_ancho + separacion) * 3, margen_y)
-	boton_cancelar.size = Vector2(boton_ancho, boton_alto)
+	boton_cancelar.size = Vector2(90, boton_alto)
+	aplicar_boton_pixel_juego(boton_cancelar, Color(0.3, 0.1, 0.1), Color(0.8, 0.3, 0.3), 9)
 	boton_cancelar.pressed.connect(_on_cancelar_poder)
 	agregar_hover_sonido_juego(boton_cancelar)
 	boton_cancelar.hide()
 	panel_poderes.add_child(boton_cancelar)
 	
 	label_poder_activo = Label.new()
-	label_poder_activo.position = Vector2(inicio_x + (boton_ancho + separacion) * 4 + 10, margen_y + 5)
-	label_poder_activo.size = Vector2(180, 30)
-	label_poder_activo.add_theme_font_size_override("font_size", 15)
+	label_poder_activo.position = Vector2(inicio_x + (boton_ancho + separacion) * 3 + 100, margen_y + 5)
+	label_poder_activo.size = Vector2(200, 30)
+	TemaPixel.aplicar_fuente_label(label_poder_activo, 10)
 	label_poder_activo.add_theme_color_override("font_color", Color(0.5, 1, 0.5))
 	panel_poderes.add_child(label_poder_activo)
 	
-	# Botón de reiniciar (oculto hasta que termine el juego)
+	# Botón de reiniciar
 	boton_reiniciar = Button.new()
-	boton_reiniciar.text = "🔄 Jugar de Nuevo"
-	boton_reiniciar.position = Vector2(440, 550)
-	boton_reiniciar.size = Vector2(250, 50)
-	boton_reiniciar.add_theme_font_size_override("font_size", 30)
-	
-	var estilo_reiniciar = StyleBoxFlat.new()
-	estilo_reiniciar.bg_color = Color(0.1, 0.6, 0.2)  # Verde fuerte
-	boton_reiniciar.add_theme_stylebox_override("normal", estilo_reiniciar)
-	var estilo_hover = StyleBoxFlat.new()
-	estilo_hover.bg_color = Color(0.15, 0.75, 0.3)  # Verde más brillante
+	boton_reiniciar.text = "JUGAR DE NUEVO"
+	boton_reiniciar.position = Vector2(426, 550)
+	boton_reiniciar.size = Vector2(300, 55)
+	aplicar_boton_pixel_juego(boton_reiniciar, Color(0.08, 0.45, 0.15), Color(0.2, 1, 0.35), 14)
 	boton_reiniciar.pressed.connect(_on_reiniciar)
 	agregar_hover_sonido_juego(boton_reiniciar)
-	boton_reiniciar.add_theme_stylebox_override("hover", estilo_hover)
-	
-	var estilo_pressed = StyleBoxFlat.new()
-	estilo_pressed.bg_color = Color(0.05, 0.4, 0.15)  # Verde oscuro
-	boton_reiniciar.add_theme_stylebox_override("pressed", estilo_pressed)
-	
 	boton_reiniciar.hide()
 	capa_ui.add_child(boton_reiniciar)
 	
 	panel_poderes.hide()
 	actualizar_inventario()
 
+func aplicar_boton_pixel_juego(boton, color_fondo, color_borde, tam: int = 11):
+	var estilos = TemaPixel.crear_boton_pixel(color_fondo, color_borde)
+	boton.add_theme_stylebox_override("normal", estilos["normal"])
+	boton.add_theme_stylebox_override("hover", estilos["hover"])
+	boton.add_theme_stylebox_override("pressed", estilos["pressed"])
+	boton.add_theme_color_override("font_color", Color(1, 1, 1))
+	boton.add_theme_color_override("font_hover_color", Color(1, 1, 0.7))
+	TemaPixel.aplicar_fuente_boton(boton, tam)
+
 func actualizar_inventario():
-	label_inventario_j1.text = "🔴 JUGADOR 1\n💣 Bombas: " + str(bombas_j1) + "\n❄️ Hielos: " + str(hielos_j1)
-	label_inventario_j2.text = "🟡 JUGADOR 2\n💣 Bombas: " + str(bombas_j2) + "\n❄️ Hielos: " + str(hielos_j2)
+	label_inventario_j1.text = "P1 ROJO\nBOMBAS: " + str(bombas_j1) + "\nHIELOS: " + str(hielos_j1)
+	label_inventario_j2.text = "P2 AMARILLO\nBOMBAS: " + str(bombas_j2) + "\nHIELOS: " + str(hielos_j2)
 
 func mostrar_botones_poder():
 	panel_poderes.show()
@@ -398,7 +522,7 @@ func mostrar_botones_poder():
 		boton_hielo.disabled = hielos_j2 <= 0
 	
 	poder_seleccionado = "NINGUNO"
-	label_poder_activo.text = "Modo: Normal 🎯"
+	label_poder_activo.text = "Modo: NORMAL"
 	label_poder_activo.add_theme_color_override("font_color", Color(0.5, 1, 0.5))
 
 func ocultar_botones_poder():
@@ -407,7 +531,7 @@ func ocultar_botones_poder():
 
 func _on_seleccionar_normal():
 	poder_seleccionado = "NINGUNO"
-	label_poder_activo.text = "Modo: Normal 🎯"
+	label_poder_activo.text = "Modo: NORMAL"
 	label_poder_activo.add_theme_color_override("font_color", Color(0.5, 1, 0.5))
 	boton_cancelar.hide()
 	label_poder_activo.show()
@@ -416,10 +540,10 @@ func _on_seleccionar_normal():
 
 func _on_seleccionar_bomba():
 	poder_seleccionado = "BOMBA"
-	label_poder_activo.text = "Poder: 💣 BOMBA"
+	label_poder_activo.text = "Poder: BOMBA"
 	label_poder_activo.add_theme_color_override("font_color", Color(1, 0.5, 0.2))
 	boton_cancelar.show()
-	label_poder_activo.show()  # Ahora se muestra junto con Cancelar
+	label_poder_activo.show()
 	resaltar_fichas_enemigas()
 	reproducir_ui(snd_bomba_seleccionada)
 
@@ -462,10 +586,125 @@ func limpiar_resaltado():
 			r.queue_free()
 	fichas_resaltadas.clear()
 
+# ====== CURSOR DE PODER (sigue el mouse exacto) ======
+func crear_cursor_poder():
+	if cursor_poder_label != null and is_instance_valid(cursor_poder_label):
+		cursor_poder_label.queue_free()
+	cursor_poder_label = null
+
+func actualizar_cursor_poder(mouse_pos):
+	# Si no hay cursor o cambió de tipo, recrear
+	if cursor_poder_label == null or not is_instance_valid(cursor_poder_label):
+		var script_path = ""
+		match poder_seleccionado:
+			"BOMBA":
+				script_path = "res://efectos/cursor_bomba.gd"
+			"HIELO":
+				script_path = "res://efectos/cursor_hielo.gd"
+			_:
+				return
+		
+		cursor_poder_label = Node2D.new()
+		cursor_poder_label.set_script(load(script_path))
+		cursor_poder_label.name = "CursorPoder"
+		cursor_poder_label.z_index = 100
+		capa_ui.add_child(cursor_poder_label)
+	
+	cursor_poder_label.position = mouse_pos
+	cursor_poder_label.visible = true
+
+func ocultar_cursor_poder():
+	if cursor_poder_label != null and is_instance_valid(cursor_poder_label):
+		cursor_poder_label.queue_free()
+		cursor_poder_label = null
+
+# ====== PREVIEW DE FICHA SOBRE EL TABLERO ======
+func crear_preview_ficha():
+	# Siempre destruir el anterior para evitar color incorrecto
+	if preview_ficha != null:
+		preview_ficha.queue_free()
+		preview_ficha = null
+	
+	preview_ficha = ficha_escena.instantiate()
+	preview_ficha.size = Vector2(TAMANO_CELDA + 2, TAMANO_CELDA + 2)
+	preview_ficha.configurar(turno_actual)
+	preview_ficha.modulate = Color(1, 1, 1, 0.5)
+	preview_ficha.z_index = 15
+	preview_ficha.visible = false
+	tablero_visual.add_child(preview_ficha)
+	preview_columna_actual = -1
+
+func destruir_preview():
+	if preview_ficha != null:
+		preview_ficha.queue_free()
+		preview_ficha = null
+		preview_columna_actual = -1
+
+func actualizar_preview(mouse_x):
+	if preview_ficha == null:
+		return
+	
+	var col = -1
+	var ancho_tablero = COLUMNAS * (TAMANO_CELDA + ESPACIO) + ESPACIO
+	
+	if mouse_x >= tablero_x and mouse_x <= tablero_x + ancho_tablero:
+		col = int((mouse_x - tablero_x - ESPACIO) / float(TAMANO_CELDA + ESPACIO))
+		col = clamp(col, 0, COLUMNAS - 1)
+	
+	# Fuera del tablero: ocultar
+	if col == -1:
+		preview_ficha.visible = false
+		preview_columna_actual = -1
+		return
+	
+	# Columna congelada o llena: ocultar completamente
+	if esta_columna_congelada(col) or buscar_fila_disponible(col) == -1:
+		preview_ficha.visible = false
+		preview_columna_actual = -1
+		return
+	
+	# Columna válida: mostrar preview
+	if col != preview_columna_actual:
+		preview_columna_actual = col
+		var pos_x = celda_pos_x(col) - 1
+		var pos_y = tablero_y - TAMANO_CELDA - 10
+		preview_ficha.position = Vector2(pos_x, pos_y)
+	
+	preview_ficha.modulate = Color(1, 1, 1, 0.5)
+	preview_ficha.visible = true
+	
 # ====== RELOJ VISUAL ======
 func _process(_delta):
 	if fase_juego == "PREGUNTA" and temporizador.time_left > 0:
 		texto_reloj.text = str(int(temporizador.time_left))
+	
+	if fase_juego == "LANZAMIENTO" and not juego_pausado:
+		var mouse_pos = get_viewport().get_mouse_position()
+		
+		if poder_seleccionado == "NINGUNO":
+			if preview_ficha == null or not is_instance_valid(preview_ficha):
+				preview_ficha = null
+				crear_preview_ficha()
+			actualizar_preview(mouse_pos.x)
+			# Si había cursor de poder, destruirlo
+			if _cursor_tipo_actual != "":
+				ocultar_cursor_poder()
+				_cursor_tipo_actual = ""
+		else:
+			# Ocultar preview de ficha
+			if preview_ficha != null:
+				preview_ficha.visible = false
+			# Si cambió el tipo de poder, recrear cursor
+			if _cursor_tipo_actual != poder_seleccionado:
+				ocultar_cursor_poder()
+				_cursor_tipo_actual = poder_seleccionado
+			actualizar_cursor_poder(mouse_pos)
+	else:
+		if preview_ficha != null:
+			preview_ficha.visible = false
+		if _cursor_tipo_actual != "":
+			ocultar_cursor_poder()
+			_cursor_tipo_actual = ""
 
 # ====== DETECTAR CLICS Y TECLAS ======
 func _input(event):
@@ -552,7 +791,9 @@ func conectar_botones_trivia():
 func iniciar_turno():
 	if juego_terminado:
 		return
-	
+		
+	destruir_preview()
+	ocultar_cursor_poder()
 	verificar_descongelamiento()
 	actualizar_opacidad_jugadores()
 
@@ -561,7 +802,7 @@ func iniciar_turno():
 	ocultar_botones_poder()
 	
 	if label_turno:
-		var color_txt = "🔴 ROJO" if turno_actual == 1 else "🟡 AMARILLO"
+		var color_txt = "ROJO" if turno_actual == 1 else "AMARILLO"
 		label_turno.text = "Turno: Jugador " + str(turno_actual) + " " + color_txt
 	
 	mostrar_pregunta_aleatoria()
@@ -584,12 +825,15 @@ func verificar_descongelamiento():
 	for info in columnas_a_quitar:
 		var col = info["columna"]
 		
+		# Restaurar celdas vacías
 		for fila in range(FILAS):
 			var celda = tablero_visual.get_node_or_null("Celda_" + str(col) + "_" + str(fila))
 			if celda and matriz_tablero[col][fila] == 0:
 				celda.set_color(color_celda_vacia)
-
-				
+		
+		# Quitar overlays de hielo
+		quitar_overlays_hielo(col)
+		
 		var flecha = tablero_visual.get_node_or_null("Flecha_" + str(col))
 		if flecha:
 			flecha.text = "▼"
@@ -601,19 +845,50 @@ func mostrar_pregunta_aleatoria():
 	if preguntas_activas.size() == 0:
 		preguntas_activas = preguntas_base.duplicate(true)
 	
+	# Limpiar botones extras de victoria/empate
+	var btn_menu_extra = pantalla_pregunta.get_node_or_null("BtnMenuVictoria")
+	if btn_menu_extra:
+		btn_menu_extra.queue_free()
+	var btn_continuar_extra = pantalla_pregunta.get_node_or_null("BotonContinuar")
+	if btn_continuar_extra:
+		btn_continuar_extra.queue_free()
+	
+	# Restaurar tamaño de fuente normal (Aumentado a 16 para coincidir)
+	TemaPixel.aplicar_fuente_label(texto_pregunta, 15)
+	TemaPixel.aplicar_fuente_label(texto_reloj, 23)
+	texto_reloj.add_theme_color_override("font_color", Color(1, 0.85, 0.1))
+	
 	var indice = randi() % preguntas_activas.size()
-	pregunta_actual = preguntas_activas[indice]
+	# Usamos duplicate(true) para no modificar la base de datos original al mezclar
+	pregunta_actual = preguntas_activas[indice].duplicate(true)
 	preguntas_activas.remove_at(indice)
 	
-	var icono = "🔴" if turno_actual == 1 else "🟡"
-	texto_pregunta.text = icono + " Jugador " + str(turno_actual) + ": " + pregunta_actual["pregunta"]
+	aplicar_color_pregunta_jugador()
+
+	var icono = "[P1]" if turno_actual == 1 else "[P2]"
+	texto_pregunta.text = icono + " " + pregunta_actual["pregunta"]
+	
+	# 1. Obtenemos cuál era el texto exacto de la respuesta correcta
+	var texto_respuesta_correcta = pregunta_actual["opciones"][pregunta_actual["correcta"]]
+	
+	# 2. Hacemos una copia del arreglo de opciones y lo mezclamos aleatoriamente
+	var opciones_mezcladas = pregunta_actual["opciones"].duplicate()
+	opciones_mezcladas.shuffle()
+	
+	# 3. Actualizamos la pregunta con las opciones ya mezcladas
+	pregunta_actual["opciones"] = opciones_mezcladas
+	
+	# 4. Buscamos en qué nuevo índice (0, 1, 2 o 3) quedó la respuesta correcta
+	pregunta_actual["correcta"] = opciones_mezcladas.find(texto_respuesta_correcta)
+	# -----------------------------------
 	
 	var botones = contenedor_botones.get_children()
 	for i in range(4):
 		botones[i].text = pregunta_actual["opciones"][i]
 		botones[i].show()
+		botones[i].custom_minimum_size = Vector2(0, 45)
 	
-	temporizador.start(15.0)
+	temporizador.start(20.0)
 
 # ====== RESPUESTAS ======
 func _on_boton_trivia_presionado(indice_boton):
@@ -633,25 +908,43 @@ func _on_tiempo_agotado():
 		return
 	reproducir_ui(snd_incorrecto)
 
-	# Romper racha
 	if turno_actual == 1:
 		racha_j1 = 0
 	else:
 		racha_j2 = 0
 	
-	# Mostrar mensaje de tiempo agotado
-	texto_pregunta.text = "⏰ ¡TIEMPO AGOTADO!\n\n Inténtalo más rápido la próxima vez"
-	texto_reloj.text = "⌛"
+	texto_pregunta.text = "[!] TIEMPO AGOTADO!\n\nIntentalo mas rapido"
+	texto_reloj.text = "--"
+	TemaPixel.aplicar_fuente_label(texto_reloj, 30)
 	
 	for boton in contenedor_botones.get_children():
 		boton.hide()
 	
 	var boton_continuar = Button.new()
 	boton_continuar.name = "BotonContinuar"
-	boton_continuar.text = "Continuar ➡️"
-	boton_continuar.position = Vector2(300, 320)
-	boton_continuar.size = Vector2(200, 50)
-	boton_continuar.add_theme_font_size_override("font_size", 18)
+	boton_continuar.text = "CONTINUAR >>"
+	boton_continuar.position = Vector2(280, 320)
+	boton_continuar.size = Vector2(240, 55)
+	aplicar_boton_pixel_juego(boton_continuar, Color(0.12, 0.12, 0.3), Color(0.3, 0.5, 0.9), 11)
+	boton_continuar.pressed.connect(_on_continuar_despues_error.bind(boton_continuar))
+	agregar_hover_sonido_juego(boton_continuar)
+	pantalla_pregunta.add_child(boton_continuar)
+
+func mostrar_mensaje_error():
+	var respuesta_correcta = pregunta_actual["opciones"][pregunta_actual["correcta"]]
+	texto_pregunta.text = "[X] INCORRECTO!\n\nRespuesta correcta:\n" + respuesta_correcta
+	texto_reloj.text = "><"
+	TemaPixel.aplicar_fuente_label(texto_reloj, 30)
+	
+	for boton in contenedor_botones.get_children():
+		boton.hide()
+	
+	var boton_continuar = Button.new()
+	boton_continuar.name = "BotonContinuar"
+	boton_continuar.text = "CONTINUAR >>"
+	boton_continuar.position = Vector2(280, 320)
+	boton_continuar.size = Vector2(240, 55)
+	aplicar_boton_pixel_juego(boton_continuar, Color(0.12, 0.12, 0.3), Color(0.3, 0.5, 0.9), 11)
 	boton_continuar.pressed.connect(_on_continuar_despues_error.bind(boton_continuar))
 	agregar_hover_sonido_juego(boton_continuar)
 	pantalla_pregunta.add_child(boton_continuar)
@@ -689,8 +982,8 @@ func otorgar_poder_aleatorio(jugador):
 			hielos_j2 += 1
 	
 	# Notificación visual
-	var icono_poder = "💣 BOMBA" if poder == "BOMBA" else "❄️ HIELO"
-	var icono_jugador = "🔴" if jugador == 1 else "🟡"
+	var icono_poder = "BOMBA" if poder == "BOMBA" else "HIELO"
+	var icono_jugador = "P1" if jugador == 1 else "P2"
 	mostrar_notificacion(icono_jugador + " ¡Jugador " + str(jugador) + " ganó " + icono_poder + "!")
 	
 	mostrar_botones_poder()
@@ -703,27 +996,6 @@ func manejar_fallo():
 	
 	# Mostrar mensaje de error
 	mostrar_mensaje_error()
-
-func mostrar_mensaje_error():
-	# Cambiar el texto de la pregunta para mostrar el error
-	var respuesta_correcta = pregunta_actual["opciones"][pregunta_actual["correcta"]]
-	texto_pregunta.text = "❌ ¡INCORRECTO!\n\nLa respuesta correcta era: " + respuesta_correcta
-	texto_reloj.text = "😔"
-	
-	# Ocultar los botones de respuesta
-	for boton in contenedor_botones.get_children():
-		boton.hide()
-	
-	# Crear botón de continuar
-	var boton_continuar = Button.new()
-	boton_continuar.name = "BotonContinuar"
-	boton_continuar.text = "Continuar ➡️"
-	boton_continuar.position = Vector2(300, 320)
-	boton_continuar.size = Vector2(200, 50)
-	boton_continuar.add_theme_font_size_override("font_size", 18)
-	boton_continuar.pressed.connect(_on_continuar_despues_error.bind(boton_continuar))
-	agregar_hover_sonido_juego(boton_continuar)
-	pantalla_pregunta.add_child(boton_continuar)
 
 func _on_continuar_despues_error(boton):
 	# Eliminar el botón de continuar
@@ -741,9 +1013,12 @@ func lanzar_ficha(columna):
 		return
 	
 	fase_juego = "ANIMANDO"
+	destruir_preview()
 	matriz_tablero[columna][fila] = turno_actual
 	
 	var nueva_ficha = ficha_escena.instantiate()
+	nueva_ficha.z_index = 5 # La ficha al caer viaja por DETRÁS de las celdas (que tienen z_index=10)
+
 	nueva_ficha.position = Vector2(celda_pos_x(columna) - 1, tablero_y - TAMANO_CELDA)
 	nueva_ficha.size = Vector2(TAMANO_CELDA + 2, TAMANO_CELDA + 2)
 	nueva_ficha.configurar(turno_actual)
@@ -782,17 +1057,26 @@ func usar_bomba(columna, fila):
 	
 	# Verificar si la columna está congelada
 	if esta_columna_congelada(columna):
-		print("¡Esa columna está congelada! No puedes destruir fichas ahí.")
 		mostrar_notificacion("❄️ ¡Columna congelada! No puedes usar bomba ahí")
+		return
+	
+	# Retroalimentación si la celda no es válida
+	if matriz_tablero[columna][fila] == 0:
+		mostrar_notificacion("[!] Casilla vacia! Elige una ficha enemiga")
+		return
+	
+	if matriz_tablero[columna][fila] == turno_actual:
+		mostrar_notificacion("[!] Esa ficha es tuya! Elige una enemiga")
 		return
 	
 	# Verificar que la celda seleccionada tiene ficha enemiga
 	if matriz_tablero[columna][fila] != enemigo:
-		print("¡Selecciona una ficha del oponente! (resaltadas en rojo)")
+		print("[!] Selecciona una ficha del oponente")
 		return
 	
 	fase_juego = "ANIMANDO"
-	
+	destruir_preview()
+	ocultar_cursor_poder()
 	# Destruir la ficha seleccionada
 	matriz_tablero[columna][fila] = 0
 	
@@ -869,24 +1153,42 @@ func verificar_victoria_completa():
 	return false
 	
 func crear_explosion(centro):
-	for i in range(12):
-		var particula = ColorRect.new()
-		particula.size = Vector2(12, 12)
-		particula.position = centro
-		var colores = [Color(1, 0.3, 0), Color(1, 0.7, 0), Color(1, 1, 0), Color(1, 0, 0)]
-		particula.color = colores[randi() % colores.size()]
-		tablero_visual.add_child(particula)
-		
-		var tween = create_tween()
-		var dir = Vector2(randf_range(-100, 100), randf_range(-100, 100))
-		tween.tween_property(particula, "position", centro + dir, 0.5)
-		tween.parallel().tween_property(particula, "modulate:a", 0.0, 0.5)
-		tween.tween_callback(particula.queue_free)
+	var ExplosionScript = preload("res://efectos/explosion_pixel.gd")
+	var explosion = Node2D.new()
+	explosion.set_script(ExplosionScript)
+	explosion.position = centro
+	tablero_visual.add_child(explosion)
+
+# ====== OVERLAY DE HIELO EN CELDAS ======
+func agregar_overlay_hielo_celda(col, fila):
+	var HieloScript = preload("res://efectos/hielo_overlay.gd")
+	var overlay = Control.new()
+	overlay.set_script(HieloScript)
+	overlay.name = "HieloOverlay_" + str(col) + "_" + str(fila)
+	overlay.size = Vector2(TAMANO_CELDA, TAMANO_CELDA)
+	overlay.position = Vector2(celda_pos_x(col), celda_pos_y(fila))
+	tablero_visual.add_child(overlay)
+
+func quitar_overlays_hielo(col):
+	for fila in range(FILAS):
+		var overlay = tablero_visual.get_node_or_null("HieloOverlay_" + str(col) + "_" + str(fila))
+		if overlay:
+			overlay.queue_free()
+
+func efecto_congelamiento(col):
+	var CongelarScript = preload("res://efectos/congelamiento_efecto.gd")
+	var efecto = Node2D.new()
+	efecto.set_script(CongelarScript)
+	var x = celda_pos_x(col)
+	var y = celda_pos_y(0)
+	var alto = FILAS * (TAMANO_CELDA + ESPACIO)
+	efecto.iniciar(x, y, TAMANO_CELDA, alto)
+	tablero_visual.add_child(efecto)
 
 # ====== USAR HIELO ======
 func usar_hielo(columna):
 	if esta_columna_congelada(columna):
-		print("¡Ya está congelada!")
+		print("[!] Ya está congelada!")
 		return
 	
 	columnas_congeladas_info.append({
@@ -899,24 +1201,30 @@ func usar_hielo(columna):
 	else:
 		hielos_j2 -= 1
 	
+	# Cambiar color de celdas vacías y agregar overlays
 	for fila in range(FILAS):
 		var celda = tablero_visual.get_node_or_null("Celda_" + str(columna) + "_" + str(fila))
 		if celda and matriz_tablero[columna][fila] == 0:
 			celda.set_color(color_celda_congelada)
+		# Overlay en TODAS las celdas (vacías y con fichas)
+		agregar_overlay_hielo_celda(columna, fila)
 	
 	var flecha = tablero_visual.get_node_or_null("Flecha_" + str(columna))
 	if flecha:
 		flecha.text = "❄️"
 		flecha.add_theme_color_override("font_color", Color(0.3, 0.8, 1))
 	
+	# Efecto visual de congelamiento
+	efecto_congelamiento(columna)
 	actualizar_inventario()
 	reproducir_efecto(snd_congelado)
+	ocultar_cursor_poder()
 	
-	# Volver a modo normal para lanzar ficha
+	# Volver a modo normal
 	poder_seleccionado = "NINGUNO"
 	boton_cancelar.hide()
 	label_poder_activo.show()
-	label_poder_activo.text = "Ahora lanza tu ficha 🎯"
+	label_poder_activo.text = "Lanza tu ficha"
 	label_poder_activo.add_theme_color_override("font_color", Color(0.5, 1, 0.5))
 	boton_hielo.disabled = true
 	boton_bomba.disabled = true
@@ -949,9 +1257,27 @@ func animar_fichas_ganadoras():
 	for pos in fichas_ganadoras:
 		var ficha = fichas_visuales[pos.x][pos.y]
 		if ficha != null:
-			var tween = create_tween().set_loops(6)
-			tween.tween_property(ficha, "modulate:a", 0.3, 0.4)
-			tween.tween_property(ficha, "modulate:a", 1.0, 0.4)
+			# Parpadeo
+			var tween = create_tween().set_loops(8)
+			tween.tween_property(ficha, "modulate:a", 0.2, 0.3)
+			tween.tween_property(ficha, "modulate:a", 1.0, 0.3)
+			
+			# Efecto de brillo en cada ficha ganadora
+			var brillo = ColorRect.new()
+			brillo.size = Vector2(TAMANO_CELDA + 6, TAMANO_CELDA + 6)
+			brillo.position = Vector2(celda_pos_x(pos.x) - 3, celda_pos_y(pos.y) - 3)
+			brillo.color = Color(1, 1, 1, 0.0)
+			brillo.z_index = 9
+			tablero_visual.add_child(brillo)
+			
+			var tween_brillo = create_tween().set_loops(4)
+			tween_brillo.tween_property(brillo, "color:a", 0.4, 0.4)
+			tween_brillo.tween_property(brillo, "color:a", 0.0, 0.4)
+			
+			# Eliminar brillo después
+			var tween_clean = create_tween()
+			tween_clean.tween_interval(4.0)
+			tween_clean.tween_callback(brillo.queue_free)
 
 func crear_confeti():
 	var colores_confeti = [
@@ -999,70 +1325,182 @@ func tablero_lleno():
 
 # ====== RESULTADOS ======
 func mostrar_victoria():
-	animar_fichas_ganadoras()
-	crear_confeti()
-	await get_tree().create_timer(2).timeout
+	destruir_preview()
+	ocultar_cursor_poder()
+	ocultar_botones_poder()
 	
-	var ganador_texto = "🔴 ROJO" if turno_actual == 1 else "🟡 AMARILLO"
-	texto_pregunta.text = "🏆 ¡JUGADOR " + str(turno_actual) + " GANA! 🏆\n" + ganador_texto
-	texto_reloj.text = "🎉"
+	var btn_pausa = capa_ui.get_node_or_null("BotonPausa")
+	if btn_pausa:
+		btn_pausa.hide()
+	var btn_musica = capa_ui.get_node_or_null("BotonMusica")
+	if btn_musica:
+		btn_musica.hide()
+	
+	animar_fichas_ganadoras()
+	reproducir_efecto(snd_victoria)
+	
+	var VictoriaScript = preload("res://efectos/victoria_efecto.gd")
+	var efecto_victoria = Node2D.new()
+	efecto_victoria.set_script(VictoriaScript)
+	tablero_visual.add_child(efecto_victoria)
+	
+	var TextoScript = preload("res://efectos/texto_victoria.gd")
+	var texto_vic = Node2D.new()
+	texto_vic.set_script(TextoScript)
+	texto_vic.position = Vector2(576, 80)
+	var jugador_txt = "P1 ROJO" if turno_actual == 1 else "P2 AMARILLO"
+	texto_vic.texto = jugador_txt + " GANA!"
+	texto_vic.color_texto = Color(1, 0.3, 0.3) if turno_actual == 1 else Color(1, 0.85, 0.1)
+	tablero_visual.add_child(texto_vic)
+	
+	await get_tree().create_timer(3.0).timeout
+	
+	var color_fondo: Color
+	var color_borde: Color
+	if turno_actual == 1:
+		color_fondo = Color(0.12, 0.04, 0.04, 0.97)
+		color_borde = Color(0.8, 0.25, 0.25)
+	else:
+		color_fondo = Color(0.12, 0.1, 0.02, 0.97)
+		color_borde = Color(0.8, 0.65, 0.1)
+	
+	if pantalla_pregunta is Panel:
+		pantalla_pregunta.add_theme_stylebox_override("panel", TemaPixel.crear_panel_pixel(color_fondo, color_borde))
+	
+	var color_nombre = Color(1, 0.3, 0.3) if turno_actual == 1 else Color(1, 0.85, 0.1)
+	var ganador_nombre = "P" + str(turno_actual) + " " + ("ROJO" if turno_actual == 1 else "AMARILLO")
+	
+	# Textos centrados
+	texto_pregunta.text = "VICTORIA!"
+	texto_pregunta.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	TemaPixel.aplicar_fuente_label(texto_pregunta, 30)
+	texto_pregunta.add_theme_color_override("font_color", color_nombre)
+	
+	texto_reloj.text = ganador_nombre + "\nGANA!"
+	texto_reloj.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	TemaPixel.aplicar_fuente_label(texto_reloj, 18)
+	texto_reloj.add_theme_color_override("font_color", Color(1, 1, 1))
+	
 	for boton in contenedor_botones.get_children():
 		boton.hide()
+	
+	# Ocultar botón reiniciar original
+	boton_reiniciar.hide()
+	
 	pantalla_pregunta.show()
-	boton_reiniciar.show()
+	
+	# Calcular centro del panel
+	var pw = pantalla_pregunta.size.x
+	var btn_ancho = 300
+	var btn_x = (pw - btn_ancho) / 2.0
+	
+	# Botón "Jugar de nuevo" dentro del panel
+	var btn_jugar_nuevo = Button.new()
+	btn_jugar_nuevo.name = "BtnJugarNuevoVic"
+	btn_jugar_nuevo.text = "JUGAR DE NUEVO"
+	btn_jugar_nuevo.position = Vector2(btn_x, pantalla_pregunta.size.y - 170)
+	btn_jugar_nuevo.size = Vector2(btn_ancho, 55)
+	aplicar_boton_pixel_juego(btn_jugar_nuevo, Color(0.06, 0.38, 0.12), Color(0.15, 0.85, 0.25), 12)
+	btn_jugar_nuevo.pressed.connect(_on_reiniciar)
+	agregar_hover_sonido_juego(btn_jugar_nuevo)
+	pantalla_pregunta.add_child(btn_jugar_nuevo)
+	
+	# Botón "Menú Principal" dentro del panel
+	var btn_ancho2 = 260
+	var btn_x2 = (pw - btn_ancho2) / 2.0
+	var btn_menu_vic = Button.new()
+	btn_menu_vic.name = "BtnMenuVictoria"
+	btn_menu_vic.text = "MENU PRINCIPAL"
+	btn_menu_vic.position = Vector2(btn_x2, pantalla_pregunta.size.y - 100)
+	btn_menu_vic.size = Vector2(btn_ancho2, 45)
+	aplicar_boton_pixel_juego(btn_menu_vic, Color(0.3, 0.08, 0.08), Color(0.75, 0.25, 0.25), 11)
+	btn_menu_vic.pressed.connect(_on_ir_menu_principal)
+	agregar_hover_sonido_juego(btn_menu_vic)
+	pantalla_pregunta.add_child(btn_menu_vic)
 
 func mostrar_empate():
-	texto_pregunta.text = "🤝 ¡EMPATE! 🤝"
-	texto_reloj.text = ""
+	destruir_preview()
+	ocultar_cursor_poder()
+	ocultar_botones_poder()
+	
+	var btn_pausa = capa_ui.get_node_or_null("BotonPausa")
+	if btn_pausa:
+		btn_pausa.hide()
+	var btn_musica = capa_ui.get_node_or_null("BotonMusica")
+	if btn_musica:
+		btn_musica.hide()
+	
+	reproducir_efecto(snd_empate)
+	
+	var TextoScript = preload("res://efectos/texto_victoria.gd")
+	var texto_emp = Node2D.new()
+	texto_emp.set_script(TextoScript)
+	texto_emp.position = Vector2(576, 80)
+	texto_emp.texto = "EMPATE!"
+	texto_emp.color_texto = Color(0.7, 0.7, 0.8)
+	tablero_visual.add_child(texto_emp)
+	
+	await get_tree().create_timer(2.0).timeout
+	
+	if pantalla_pregunta is Panel:
+		pantalla_pregunta.add_theme_stylebox_override("panel", TemaPixel.crear_panel_pixel(
+			Color(0.08, 0.08, 0.14, 0.97), Color(0.5, 0.5, 0.6)
+		))
+	
+	texto_pregunta.text = "EMPATE!"
+	texto_pregunta.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	TemaPixel.aplicar_fuente_label(texto_pregunta, 30)
+	texto_pregunta.add_theme_color_override("font_color", Color(0.7, 0.75, 0.9))
+	
+	texto_reloj.text = "Nadie gano\nesta ronda"
+	texto_reloj.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	TemaPixel.aplicar_fuente_label(texto_reloj, 14)
+	texto_reloj.add_theme_color_override("font_color", Color(0.6, 0.6, 0.7))
+	
 	for boton in contenedor_botones.get_children():
 		boton.hide()
+	
+	boton_reiniciar.hide()
 	pantalla_pregunta.show()
-	boton_reiniciar.show()
+	
+	var pw = pantalla_pregunta.size.x
+	var btn_ancho = 300
+	var btn_x = (pw - btn_ancho) / 2.0
+	
+	var btn_jugar_nuevo = Button.new()
+	btn_jugar_nuevo.name = "BtnJugarNuevoVic"
+	btn_jugar_nuevo.text = "JUGAR DE NUEVO"
+	btn_jugar_nuevo.position = Vector2(btn_x, pantalla_pregunta.size.y - 170)
+	btn_jugar_nuevo.size = Vector2(btn_ancho, 55)
+	aplicar_boton_pixel_juego(btn_jugar_nuevo, Color(0.06, 0.38, 0.12), Color(0.15, 0.85, 0.25), 12)
+	btn_jugar_nuevo.pressed.connect(_on_reiniciar)
+	agregar_hover_sonido_juego(btn_jugar_nuevo)
+	pantalla_pregunta.add_child(btn_jugar_nuevo)
+	
+	var btn_ancho2 = 260
+	var btn_x2 = (pw - btn_ancho2) / 2.0
+	var btn_menu_emp = Button.new()
+	btn_menu_emp.name = "BtnMenuVictoria"
+	btn_menu_emp.text = "MENU PRINCIPAL"
+	btn_menu_emp.position = Vector2(btn_x2, pantalla_pregunta.size.y - 100)
+	btn_menu_emp.size = Vector2(btn_ancho2, 45)
+	aplicar_boton_pixel_juego(btn_menu_emp, Color(0.3, 0.08, 0.08), Color(0.75, 0.25, 0.25), 11)
+	btn_menu_emp.pressed.connect(_on_ir_menu_principal)
+	agregar_hover_sonido_juego(btn_menu_emp)
+	pantalla_pregunta.add_child(btn_menu_emp)
 
 # ====== REINICIAR JUEGO ======
 func _on_reiniciar():
-	reproducir_efecto(snd_retirar_fichas)
-	await get_tree().create_timer(1.0).timeout  # Esperar a que suene
+	Global.reproducir_transicion(snd_retirar_fichas)
+	Global.abrir_categorias = true
 	get_tree().change_scene_to_file("res://menu_principal.tscn")
-	# Limpiar todo
-	#boton_reiniciar.hide()
-	#juego_terminado = false
-	#turno_actual = 1
-	#racha_j1 = 0
-	#racha_j2 = 0
-	#bombas_j1 = 0
-	#bombas_j2 = 0
-	#hielos_j1 = 0
-	#hielos_j2 = 0
-	#poder_seleccionado = "NINGUNO"
-	#columnas_congeladas_info.clear()
-	#fichas_resaltadas.clear()
-	#preguntas_activas = preguntas_base.duplicate(true)
-	#
-	## Eliminar todas las fichas visuales del tablero
-	#for x in range(COLUMNAS):
-		#for y in range(FILAS):
-			#if fichas_visuales[x][y] != null:
-				#fichas_visuales[x][y].queue_free()
-	#
-	## Reiniciar matrices
-	#crear_matriz_tablero()
-	#crear_matriz_fichas_visuales()
-	#
-	## Restaurar colores de celdas
-	#for x in range(COLUMNAS):
-		#for y in range(FILAS):
-			#var celda = tablero_visual.get_node_or_null("Celda_" + str(x) + "_" + str(y))
-			#if celda:
-				#celda.color = color_celda_vacia
-		#var flecha = tablero_visual.get_node_or_null("Flecha_" + str(x))
-		#if flecha:
-			#flecha.text = "▼"
-			#flecha.add_theme_color_override("font_color", Color(1, 1, 1, 0.6))
-	#
-	#actualizar_inventario()
-	#iniciar_turno()
 
+# "Menú principal" → va al menú normal
+func _on_ir_menu_principal():
+	Global.reproducir_transicion(snd_retirar_fichas)
+	Global.abrir_categorias = false
+	get_tree().change_scene_to_file("res://menu_principal.tscn")
+	
 func cambiar_turno():
 	turno_actual = 2 if turno_actual == 1 else 1
 	iniciar_turno()
@@ -1081,95 +1519,82 @@ func crear_menu_pausa():
 	panel_pausa.hide()
 	capa_ui.add_child(panel_pausa)
 	
-	# Fondo oscuro
 	var fondo = ColorRect.new()
 	fondo.position = Vector2(0, 0)
 	fondo.size = Vector2(1152, 648)
-	fondo.color = Color(0, 0, 0, 0.75)
+	fondo.color = Color(0, 0, 0, 0.8)
 	panel_pausa.add_child(fondo)
 	
-	# Ventana central
 	var ventana = Panel.new()
 	ventana.position = Vector2(376, 150)
 	ventana.size = Vector2(400, 350)
-	var estilo = StyleBoxFlat.new()
-	estilo.bg_color = Color(0.08, 0.08, 0.2, 0.98)
-	estilo.border_width_bottom = 3
-	estilo.border_width_top = 3
-	estilo.border_width_left = 3
-	estilo.border_width_right = 3
-	estilo.border_color = Color(0.4, 0.5, 0.8)
-	estilo.corner_radius_top_left = 15
-	estilo.corner_radius_top_right = 15
-	estilo.corner_radius_bottom_left = 15
-	estilo.corner_radius_bottom_right = 15
-	ventana.add_theme_stylebox_override("panel", estilo)
+	ventana.add_theme_stylebox_override("panel", TemaPixel.crear_panel_pixel(
+		Color(0.06, 0.06, 0.18, 0.98),
+		Color(0.3, 0.45, 0.8)
+	))
 	panel_pausa.add_child(ventana)
 	
-	# Título
 	var titulo = Label.new()
-	titulo.text = "⏸️  PAUSA"
+	titulo.text = "PAUSA"
 	titulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	titulo.position = Vector2(100, 20)
+	titulo.position = Vector2(100, 25)
 	titulo.size = Vector2(200, 40)
-	titulo.add_theme_font_size_override("font_size", 32)
-	titulo.add_theme_color_override("font_color", Color(1, 0.9, 0.2))
+	TemaPixel.aplicar_fuente_label(titulo, 24)
+	titulo.add_theme_color_override("font_color", Color(1, 0.85, 0.1))
 	ventana.add_child(titulo)
 	
-	# Botón Continuar
 	var btn_continuar = Button.new()
-	btn_continuar.text = "▶️  Continuar"
-	btn_continuar.position = Vector2(100, 90)
+	btn_continuar.text = "CONTINUAR"
+	btn_continuar.position = Vector2(100, 95)
 	btn_continuar.size = Vector2(200, 50)
-	btn_continuar.add_theme_font_size_override("font_size", 20)
-	aplicar_estilo_boton_juego(btn_continuar, Color(0.1, 0.5, 0.2), Color(0.3, 1, 0.4))
+	aplicar_boton_pixel_juego(btn_continuar, Color(0.08, 0.4, 0.15), Color(0.2, 0.9, 0.3), 12)
 	btn_continuar.pressed.connect(_on_pausa_continuar)
 	agregar_hover_sonido_juego(btn_continuar)
 	ventana.add_child(btn_continuar)
 	
-	# Botón Reiniciar
 	var btn_reiniciar_pausa = Button.new()
-	btn_reiniciar_pausa.text = "🔄  Reiniciar"
-	btn_reiniciar_pausa.position = Vector2(100, 160)
+	btn_reiniciar_pausa.text = "REINICIAR"
+	btn_reiniciar_pausa.position = Vector2(100, 165)
 	btn_reiniciar_pausa.size = Vector2(200, 50)
-	btn_reiniciar_pausa.add_theme_font_size_override("font_size", 20)
-	aplicar_estilo_boton_juego(btn_reiniciar_pausa, Color(0.4, 0.3, 0.05), Color(0.8, 0.6, 0.1))
+	aplicar_boton_pixel_juego(btn_reiniciar_pausa, Color(0.35, 0.25, 0.05), Color(0.8, 0.6, 0.1), 12)
 	btn_reiniciar_pausa.pressed.connect(_on_pausa_reiniciar)
 	agregar_hover_sonido_juego(btn_reiniciar_pausa)
 	ventana.add_child(btn_reiniciar_pausa)
 	
-	# Botón Menú Principal
 	var btn_menu = Button.new()
-	btn_menu.text = "🏠  Menú Principal"
-	btn_menu.position = Vector2(100, 230)
+	btn_menu.text = "MENU"
+	btn_menu.position = Vector2(100, 235)
 	btn_menu.size = Vector2(200, 50)
-	btn_menu.add_theme_font_size_override("font_size", 20)
-	aplicar_estilo_boton_juego(btn_menu, Color(0.5, 0.1, 0.1), Color(1, 0.3, 0.3))
+	aplicar_boton_pixel_juego(btn_menu, Color(0.4, 0.08, 0.08), Color(1, 0.3, 0.3), 12)
 	btn_menu.pressed.connect(_on_pausa_menu)
 	agregar_hover_sonido_juego(btn_menu)
 	ventana.add_child(btn_menu)
 	
 	panel_pausa.process_mode = Node.PROCESS_MODE_ALWAYS
-
-func aplicar_estilo_boton_juego(boton, color_fondo, color_borde):
-	var estilo = StyleBoxFlat.new()
-	estilo.bg_color = color_fondo
-	estilo.border_width_bottom = 3
-	estilo.border_width_top = 3
-	estilo.border_width_left = 3
-	estilo.border_width_right = 3
-	estilo.border_color = color_borde
-	estilo.corner_radius_top_left = 10
-	estilo.corner_radius_top_right = 10
-	estilo.corner_radius_bottom_left = 10
-	estilo.corner_radius_bottom_right = 10
-	boton.add_theme_stylebox_override("normal", estilo)
 	
-	var estilo_hover = estilo.duplicate()
-	estilo_hover.bg_color = Color(color_fondo.r + 0.1, color_fondo.g + 0.1, color_fondo.b + 0.1)
-	boton.add_theme_stylebox_override("hover", estilo_hover)
+	# Botón de pausa con ÍCONO pixel art
+	var btn_pausa = Button.new()
+	btn_pausa.name = "BotonPausa"
+	btn_pausa.text = ""
+	btn_pausa.position = Vector2(10, 10)
+	btn_pausa.size = Vector2(45, 45)
+	btn_pausa.z_index = 50
+	var estilos_pausa = TemaPixel.crear_boton_pixel(
+		Color(0.12, 0.12, 0.25, 0.85),
+		Color(0.35, 0.4, 0.7)
+	)
+	btn_pausa.add_theme_stylebox_override("normal", estilos_pausa["normal"])
+	btn_pausa.add_theme_stylebox_override("hover", estilos_pausa["hover"])
+	btn_pausa.add_theme_stylebox_override("pressed", estilos_pausa["pressed"])
+	btn_pausa.pressed.connect(toggle_pausa)
+	btn_pausa.process_mode = Node.PROCESS_MODE_ALWAYS
+	agregar_hover_sonido_juego(btn_pausa)
+	capa_ui.add_child(btn_pausa)
 	
-	boton.add_theme_color_override("font_color", Color(1, 1, 1))
+	# Agregar ícono de pausa pixel art
+	var icono_pausa = IconoPixel.crear("pausa", 28.0)
+	icono_pausa.position = Vector2(8, 8)
+	btn_pausa.add_child(icono_pausa)
 
 func _on_pausa_continuar():
 	juego_pausado = false
@@ -1180,11 +1605,14 @@ func _on_pausa_reiniciar():
 	juego_pausado = false
 	panel_pausa.hide()
 	get_tree().paused = false
-	_on_reiniciar()
+	# Reiniciar con la misma categoría
+	get_tree().change_scene_to_file("res://juego_principal.tscn")
 
 func _on_pausa_menu():
 	juego_pausado = false
 	get_tree().paused = false
+	Global.reproducir_transicion(snd_retirar_fichas)
+	Global.abrir_categorias = false
 	get_tree().change_scene_to_file("res://menu_principal.tscn")
 
 func toggle_pausa():

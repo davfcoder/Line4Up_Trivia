@@ -1,158 +1,367 @@
 extends Control
 
 var panel_instrucciones = null
-var dificultad_seleccionada = "intermedio"
+var panel_categorias = null
+var panel_creditos = null
+var categoria_seleccionada = "ingles"
+
+const TemaPixel = preload("res://efectos/tema_pixel.gd")
+const IconoPixel = preload("res://efectos/icono_pixel.gd")
+const FondoEspacial = preload("res://efectos/fondo_espacial.gd")
+
+var categorias_disponibles = {
+	"ingles": "INGLES",
+	"cultura_general": "CULTURA GENERAL",
+	"programacion": "PROGRAMACION",
+	"ciencias": "CIENCIAS",
+	"historia": "HISTORIA"
+}
+
+var categorias_icono_tipo = {
+	"ingles": "cat_ingles",
+	"cultura_general": "cat_cultura",
+	"programacion": "cat_programacion",
+	"ciencias": "cat_ciencias",
+	"historia": "cat_historia"
+}
 
 func _ready():
-	var snd_hover = preload("res://sonidos/hover1.wav")
 	var fondo = $FondoMenu
-	fondo.color = Color(0.05, 0.05, 0.15)
+	fondo.color = Color(0.03, 0.03, 0.1)
 	fondo.position = Vector2(0, 0)
 	fondo.size = Vector2(1152, 648)
+	fondo.z_index = -20
+	
+	# Fondo espacial animado
+	var espacio = Node2D.new()
+	espacio.set_script(FondoEspacial)
+	add_child(espacio)
+	
+	# Línea decorativa superior
+	var linea_top = ColorRect.new()
+	linea_top.position = Vector2(0, 0)
+	linea_top.size = Vector2(1152, 3)
+	linea_top.color = Color(0.2, 0.4, 0.8, 0.5)
+	add_child(linea_top)
 	
 	var titulo = $Titulo
-	titulo.text = "🎮 LINE 4 UP"
+	titulo.text = "LINE 4 UP"
 	titulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	titulo.position = Vector2(276, 30)
-	titulo.size = Vector2(600, 70)
-	titulo.add_theme_font_size_override("font_size", 58)
-	titulo.add_theme_color_override("font_color", Color(1, 0.9, 0.2))
+	titulo.position = Vector2(176, 40)
+	titulo.size = Vector2(800, 70)
+	TemaPixel.aplicar_fuente_label(titulo, 44)
+	titulo.add_theme_color_override("font_color", Color(1, 0.85, 0.1))
 	
 	var subtitulo = $Subtitulo
-	subtitulo.text = "🧠 Trivia Edition"
+	subtitulo.text = "~ TRIVIA EDITION ~"
 	subtitulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	subtitulo.position = Vector2(276, 100)
+	subtitulo.position = Vector2(276, 105)
 	subtitulo.size = Vector2(600, 35)
-	subtitulo.add_theme_font_size_override("font_size", 22)
-	subtitulo.add_theme_color_override("font_color", Color(0.7, 0.8, 1))
+	TemaPixel.aplicar_fuente_label(subtitulo, 14)
+	subtitulo.add_theme_color_override("font_color", Color(0.5, 0.7, 1))
 	
-	# ====== SELECCIÓN DE DIFICULTAD ======
-	var label_dificultad = Label.new()
-	label_dificultad.text = "📚 Selecciona la dificultad:"
-	label_dificultad.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label_dificultad.position = Vector2(326, 155)
-	label_dificultad.size = Vector2(500, 30)
-	label_dificultad.add_theme_font_size_override("font_size", 18)
-	label_dificultad.add_theme_color_override("font_color", Color(0.8, 0.8, 0.9))
-	add_child(label_dificultad)
+	var linea_deco = Label.new()
+	linea_deco.text = "================================"
+	linea_deco.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	linea_deco.position = Vector2(226, 135)
+	linea_deco.size = Vector2(700, 20)
+	TemaPixel.aplicar_fuente_label(linea_deco, 8)
+	linea_deco.add_theme_color_override("font_color", Color(0.2, 0.35, 0.6, 0.6))
+	add_child(linea_deco)
 	
-	# Contenedor de botones de dificultad
-	var btn_basico = Button.new()
-	btn_basico.name = "BtnBasico"
-	btn_basico.text = "🟢 Básico"
-	btn_basico.position = Vector2(296, 190)
-	btn_basico.size = Vector2(170, 45)
-	btn_basico.add_theme_font_size_override("font_size", 18)
-	aplicar_estilo_boton(btn_basico, Color(0.1, 0.4, 0.15), Color(0.2, 0.7, 0.3))
-	btn_basico.pressed.connect(_on_dificultad.bind("basico", btn_basico))
-	agregar_hover_sonido(btn_basico)
-	add_child(btn_basico)
+	# Fichas decorativas a los lados del título
+	var ficha_deco_izq = IconoPixel.crear("ficha_roja", 36)
+	ficha_deco_izq.position = Vector2(230, 42)
+	add_child(ficha_deco_izq)
+	var ficha_deco_der = IconoPixel.crear("ficha_amarilla", 36)
+	ficha_deco_der.position = Vector2(886, 42)
+	add_child(ficha_deco_der)
 	
-	var btn_intermedio = Button.new()
-	btn_intermedio.name = "BtnIntermedio"
-	btn_intermedio.text = "🟡 Intermedio"
-	btn_intermedio.position = Vector2(486, 190)
-	btn_intermedio.size = Vector2(170, 45)
-	btn_intermedio.add_theme_font_size_override("font_size", 18)
-	aplicar_estilo_boton(btn_intermedio, Color(0.5, 0.4, 0.05), Color(1, 0.8, 0.2))
-	btn_intermedio.pressed.connect(_on_dificultad.bind("intermedio", btn_intermedio))
-	agregar_hover_sonido(btn_intermedio)
-	add_child(btn_intermedio)
-	
-	var btn_avanzado = Button.new()
-	btn_avanzado.name = "BtnAvanzado"
-	btn_avanzado.text = "🔴 Avanzado"
-	btn_avanzado.position = Vector2(676, 190)
-	btn_avanzado.size = Vector2(170, 45)
-	btn_avanzado.add_theme_font_size_override("font_size", 18)
-	aplicar_estilo_boton(btn_avanzado, Color(0.5, 0.1, 0.1), Color(1, 0.3, 0.3))
-	btn_avanzado.pressed.connect(_on_dificultad.bind("avanzado", btn_avanzado))
-	agregar_hover_sonido(btn_avanzado)
-	add_child(btn_avanzado)
-	
-	# Label que muestra la dificultad actual
-	var label_seleccion = Label.new()
-	label_seleccion.name = "LabelSeleccion"
-	label_seleccion.text = "Seleccionado: 🟡 Intermedio"
-	label_seleccion.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label_seleccion.position = Vector2(326, 245)
-	label_seleccion.size = Vector2(500, 25)
-	label_seleccion.add_theme_font_size_override("font_size", 16)
-	label_seleccion.add_theme_color_override("font_color", Color(1, 0.8, 0.2))
-	add_child(label_seleccion)
-	
-	# ====== BOTONES PRINCIPALES ======
+	# Botones
 	var btn_jugar = $BotonJugar
-	btn_jugar.text = "▶️  JUGAR"
-	btn_jugar.position = Vector2(426, 290)
-	btn_jugar.size = Vector2(300, 65)
-	btn_jugar.add_theme_font_size_override("font_size", 30)
-	aplicar_estilo_boton(btn_jugar, Color(0.1, 0.5, 0.2), Color(0.3, 1, 0.4))
+	btn_jugar.text = "> JUGAR <"
+	btn_jugar.position = Vector2(376, 195)
+	btn_jugar.size = Vector2(400, 75)
+	aplicar_boton_pixel(btn_jugar, Color(0.06, 0.38, 0.12), Color(0.15, 0.85, 0.25), 20)
 	btn_jugar.pressed.connect(_on_jugar)
 	agregar_hover_sonido(btn_jugar)
 	
 	var btn_instrucciones = Button.new()
-	btn_instrucciones.text = "📋  INSTRUCCIONES"
-	btn_instrucciones.position = Vector2(426, 375)
-	btn_instrucciones.size = Vector2(300, 50)
-	btn_instrucciones.add_theme_font_size_override("font_size", 20)
-	aplicar_estilo_boton(btn_instrucciones, Color(0.15, 0.2, 0.5), Color(0.3, 0.5, 1))
+	btn_instrucciones.text = "INSTRUCCIONES"
+	btn_instrucciones.position = Vector2(401, 295)
+	btn_instrucciones.size = Vector2(350, 58)
+	aplicar_boton_pixel(btn_instrucciones, Color(0.1, 0.12, 0.35), Color(0.25, 0.4, 0.85), 14)
 	btn_instrucciones.pressed.connect(_on_instrucciones)
 	agregar_hover_sonido(btn_instrucciones)
 	add_child(btn_instrucciones)
 	
-	# Botón Salir
 	var btn_salir = $BotonSalir
-	btn_salir.text = "🚪  SALIR"
-	btn_salir.position = Vector2(476, 520)
-	btn_salir.size = Vector2(200, 45)
-	btn_salir.add_theme_font_size_override("font_size", 18)
-	aplicar_estilo_boton(btn_salir, Color(0.5, 0.1, 0.1), Color(1, 0.3, 0.3))
+	btn_salir.text = "SALIR"
+	btn_salir.position = Vector2(451, 430)
+	btn_salir.size = Vector2(250, 50)
+	aplicar_boton_pixel(btn_salir, Color(0.35, 0.06, 0.06), Color(0.85, 0.2, 0.2), 14)
 	btn_salir.pressed.connect(_on_salir)
 	agregar_hover_sonido(btn_salir)
 	
+	# Botón INFO
+	var btn_info = Button.new()
+	btn_info.name = "BtnInfo"
+	btn_info.text = ""
+	btn_info.position = Vector2(1080, 585)
+	btn_info.size = Vector2(35, 35)
+	btn_info.z_index = 10
+	var estilos_info = TemaPixel.crear_boton_pixel(Color(0.1, 0.1, 0.25, 0.7), Color(0.3, 0.4, 0.7))
+	btn_info.add_theme_stylebox_override("normal", estilos_info["normal"])
+	btn_info.add_theme_stylebox_override("hover", estilos_info["hover"])
+	btn_info.pressed.connect(_on_info)
+	agregar_hover_sonido(btn_info)
+	add_child(btn_info)
+	var icono_info = IconoPixel.crear("info", 22, Color(0.5, 0.7, 1))
+	icono_info.position = Vector2(6, 6)
+	btn_info.add_child(icono_info)
+	
+	var label_version = Label.new()
+	label_version.text = "v1.0"
+	label_version.position = Vector2(1080, 622)
+	label_version.size = Vector2(60, 20)
+	TemaPixel.aplicar_fuente_label(label_version, 7)
+	label_version.add_theme_color_override("font_color", Color(0.25, 0.25, 0.35))
+	add_child(label_version)
+	
+	# Texto decorativo inferior
+	var deco_bottom = Label.new()
+	deco_bottom.text = "~ Conecta 4 fichas para ganar ~"
+	deco_bottom.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	deco_bottom.position = Vector2(326, 520)
+	deco_bottom.size = Vector2(500, 20)
+	TemaPixel.aplicar_fuente_label(deco_bottom, 8)
+	deco_bottom.add_theme_color_override("font_color", Color(0.3, 0.4, 0.55, 0.5))
+	add_child(deco_bottom)
+	
 	crear_panel_instrucciones()
+	crear_panel_categorias()
+	crear_panel_creditos()
+	
+	$MusicaMenu.stream = preload("res://musica/menu_theme.wav")
+	$MusicaMenu.volume_db = -13
+	if Global.musica_activa:
+		$MusicaMenu.play()
+	$MusicaMenu.finished.connect(_on_musica_menu_terminada)
+	
+	Global.crear_boton_musica(self, _on_toggle_musica)
+	
+	# Auto-abrir categorías si viene de "jugar de nuevo"
+	if Global.abrir_categorias:
+		Global.abrir_categorias = false
+		panel_categorias.show()
 
-func aplicar_estilo_boton(boton, color_fondo, color_borde):
-	var estilo = StyleBoxFlat.new()
-	estilo.bg_color = color_fondo
-	estilo.border_width_bottom = 3
-	estilo.border_width_top = 3
-	estilo.border_width_left = 3
-	estilo.border_width_right = 3
-	estilo.border_color = color_borde
-	estilo.corner_radius_top_left = 12
-	estilo.corner_radius_top_right = 12
-	estilo.corner_radius_bottom_left = 12
-	estilo.corner_radius_bottom_right = 12
-	boton.add_theme_stylebox_override("normal", estilo)
-	
-	var estilo_hover = estilo.duplicate()
-	estilo_hover.bg_color = Color(color_fondo.r + 0.1, color_fondo.g + 0.1, color_fondo.b + 0.1)
-	boton.add_theme_stylebox_override("hover", estilo_hover)
-	
+func aplicar_boton_pixel(boton, color_fondo, color_borde, tam_fuente: int = 13):
+	var estilos = TemaPixel.crear_boton_pixel(color_fondo, color_borde)
+	boton.add_theme_stylebox_override("normal", estilos["normal"])
+	boton.add_theme_stylebox_override("hover", estilos["hover"])
+	boton.add_theme_stylebox_override("pressed", estilos["pressed"])
 	boton.add_theme_color_override("font_color", Color(1, 1, 1))
-	boton.add_theme_color_override("font_hover_color", Color(1, 1, 0.8))
+	boton.add_theme_color_override("font_hover_color", Color(1, 1, 0.7))
+	TemaPixel.aplicar_fuente_boton(boton, tam_fuente)
 
-# ====== DIFICULTAD ======
-func _on_dificultad(nivel, boton):
-	dificultad_seleccionada = nivel
+func _on_toggle_musica():
+	Global.musica_activa = !Global.musica_activa
+	var btn = get_node_or_null("BotonMusica")
+	Global.actualizar_boton_musica(btn)
+	if Global.musica_activa:
+		if not $MusicaMenu.playing:
+			$MusicaMenu.play()
+	else:
+		$MusicaMenu.stop()
+
+func _on_musica_menu_terminada():
+	$MusicaMenu.play()
+
+# ====== PANEL DE CATEGORÍAS ======
+func crear_panel_categorias():
+	panel_categorias = Control.new()
+	panel_categorias.name = "PanelCategorias"
+	panel_categorias.set_anchors_preset(Control.PRESET_FULL_RECT)
+	panel_categorias.hide()
+	add_child(panel_categorias)
 	
-	var textos = {
-		"basico": "Seleccionado: 🟢 Básico",
-		"intermedio": "Seleccionado: 🟡 Intermedio",
-		"avanzado": "Seleccionado: 🔴 Avanzado"
-	}
+	var fondo_oscuro = ColorRect.new()
+	fondo_oscuro.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fondo_oscuro.color = Color(0, 0, 0, 0.8)
+	panel_categorias.add_child(fondo_oscuro)
 	
-	var colores = {
-		"basico": Color(0.2, 0.8, 0.3),
-		"intermedio": Color(1, 0.8, 0.2),
-		"avanzado": Color(1, 0.3, 0.3)
-	}
+	var btn_volver = Button.new()
+	btn_volver.name = "BtnVolver"
+	btn_volver.text = "< VOLVER"
+	btn_volver.position = Vector2(10, 62)
+	btn_volver.size = Vector2(140, 38)
+	btn_volver.z_index = 60
+	aplicar_boton_pixel(btn_volver, Color(0.35, 0.1, 0.1), Color(0.8, 0.3, 0.3), 10)
+	btn_volver.pressed.connect(_on_volver_menu)
+	agregar_hover_sonido(btn_volver)
+	panel_categorias.add_child(btn_volver)
 	
-	var label = get_node("LabelSeleccion")
-	label.text = textos[nivel]
-	label.add_theme_color_override("font_color", colores[nivel])
+	var ventana = Panel.new()
+	ventana.name = "VentanaCategorias"
+	ventana.position = Vector2(276, 30)
+	ventana.size = Vector2(600, 560)
+	ventana.add_theme_stylebox_override("panel", TemaPixel.crear_panel_pixel(
+		Color(0.05, 0.05, 0.16, 0.97), Color(0.2, 0.4, 0.85)
+	))
+	panel_categorias.add_child(ventana)
+	
+	var titulo_cat = Label.new()
+	titulo_cat.text = "ELIGE CATEGORIA"
+	titulo_cat.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	titulo_cat.position = Vector2(0, 16)
+	titulo_cat.size = Vector2(600, 40)
+	TemaPixel.aplicar_fuente_label(titulo_cat, 18)
+	titulo_cat.add_theme_color_override("font_color", Color(1, 0.85, 0.1))
+	ventana.add_child(titulo_cat)
+	
+	var y_offset = 65
+	var btn_height = 58
+	var btn_spacing = 10
+	var btn_width = 480
+	var btn_x = 60
+	
+	var indice = 0
+	for clave in categorias_disponibles.keys():
+		# Contenedor para botón + ícono
+		var btn_cat = Button.new()
+		btn_cat.name = "BtnCat_" + clave
+		btn_cat.text = "     " + categorias_disponibles[clave]
+		btn_cat.position = Vector2(btn_x, y_offset + indice * (btn_height + btn_spacing))
+		btn_cat.size = Vector2(btn_width, btn_height)
+		aplicar_boton_pixel(btn_cat, Color(0.08, 0.08, 0.2), Color(0.2, 0.3, 0.6), 13)
+		btn_cat.pressed.connect(_on_categoria_seleccionada.bind(clave))
+		agregar_hover_sonido(btn_cat)
+		ventana.add_child(btn_cat)
+		
+		# Ícono pixel art dentro del botón
+		var icono_cat = IconoPixel.crear(categorias_icono_tipo[clave], 34)
+		icono_cat.position = Vector2(15, 12)
+		btn_cat.add_child(icono_cat)
+		
+		indice += 1
+	
+	var label_sel = Label.new()
+	label_sel.name = "LabelCategoriaSel"
+	label_sel.text = "> INGLES"
+	label_sel.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label_sel.position = Vector2(0, y_offset + indice * (btn_height + btn_spacing) + 5)
+	label_sel.size = Vector2(600, 28)
+	TemaPixel.aplicar_fuente_label(label_sel, 12)
+	label_sel.add_theme_color_override("font_color", Color(0.3, 0.8, 1))
+	ventana.add_child(label_sel)
+	
+	var btn_confirmar = Button.new()
+	btn_confirmar.name = "BtnConfirmar"
+	btn_confirmar.text = ">> COMENZAR <<"
+	btn_confirmar.position = Vector2(140, y_offset + indice * (btn_height + btn_spacing) + 42)
+	btn_confirmar.size = Vector2(320, 58)
+	aplicar_boton_pixel(btn_confirmar, Color(0.06, 0.4, 0.12), Color(0.15, 0.9, 0.3), 16)
+	btn_confirmar.pressed.connect(_on_confirmar_categoria)
+	agregar_hover_sonido(btn_confirmar)
+	ventana.add_child(btn_confirmar)
+	
+	_resaltar_categoria("ingles")
+
+func _on_categoria_seleccionada(clave):
+	categoria_seleccionada = clave
+	_resaltar_categoria(clave)
+	var ventana = panel_categorias.get_node("VentanaCategorias")
+	var label = ventana.get_node("LabelCategoriaSel")
+	label.text = "> " + categorias_disponibles[clave]
+
+func _resaltar_categoria(clave_seleccionada):
+	var ventana = panel_categorias.get_node("VentanaCategorias")
+	for clave in categorias_disponibles.keys():
+		var btn = ventana.get_node_or_null("BtnCat_" + clave)
+		if btn:
+			if clave == clave_seleccionada:
+				aplicar_boton_pixel(btn, Color(0.1, 0.28, 0.5), Color(0.25, 0.65, 1), 13)
+			else:
+				aplicar_boton_pixel(btn, Color(0.08, 0.08, 0.2), Color(0.2, 0.3, 0.6), 13)
+
+func _on_confirmar_categoria():
+	Global.categoria = categoria_seleccionada
+	get_tree().change_scene_to_file("res://juego_principal.tscn")
+
+func _on_volver_menu():
+	panel_categorias.hide()
+
+# ====== CRÉDITOS ======
+func crear_panel_creditos():
+	panel_creditos = Control.new()
+	panel_creditos.name = "PanelCreditos"
+	panel_creditos.set_anchors_preset(Control.PRESET_FULL_RECT)
+	panel_creditos.hide()
+	add_child(panel_creditos)
+	
+	var fondo_oscuro = ColorRect.new()
+	fondo_oscuro.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fondo_oscuro.color = Color(0, 0, 0, 0.85)
+	panel_creditos.add_child(fondo_oscuro)
+	
+	var ventana = Panel.new()
+	ventana.position = Vector2(276, 80)
+	ventana.size = Vector2(600, 488)
+	ventana.add_theme_stylebox_override("panel", TemaPixel.crear_panel_pixel(
+		Color(0.05, 0.05, 0.16, 0.98), Color(0.25, 0.4, 0.8)
+	))
+	panel_creditos.add_child(ventana)
+	
+	var titulo_c = Label.new()
+	titulo_c.text = "INFORMACION"
+	titulo_c.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	titulo_c.position = Vector2(0, 18)
+	titulo_c.size = Vector2(600, 35)
+	TemaPixel.aplicar_fuente_label(titulo_c, 20)
+	titulo_c.add_theme_color_override("font_color", Color(1, 0.85, 0.1))
+	ventana.add_child(titulo_c)
+	
+	var info_lines = [
+		"", "LINE 4 UP: TRIVIA EDITION", "",
+		"Version: 1.0", "",
+		"Desarrollado con:", "  Godot Engine 4.6.1", "",
+		"Desarrollado por:", "  davfcoder", "",
+		"Genero: Trivia / Estrategia", "Modo: 1 vs 1 Local", "",
+		"Un juego de conecta cuatro", "combinado con trivia educativa",
+		"para estudiantes universitarios.", "",
+		"Repositorio","https://github.com/davfcoder/LineUp4_Trivia.git", "",
+		"2026"
+	]
+	
+	var y_pos = 60
+	for linea in info_lines:
+		var lbl = Label.new()
+		lbl.text = linea
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lbl.position = Vector2(0, y_pos)
+		lbl.size = Vector2(600, 18)
+		TemaPixel.aplicar_fuente_label(lbl, 9)
+		if linea == "LINE 4 UP: TRIVIA EDITION":
+			lbl.add_theme_color_override("font_color", Color(0.4, 0.8, 1))
+			TemaPixel.aplicar_fuente_label(lbl, 12)
+		elif linea.begins_with("  "):
+			lbl.add_theme_color_override("font_color", Color(0.5, 0.9, 0.5))
+		else:
+			lbl.add_theme_color_override("font_color", Color(0.7, 0.7, 0.8))
+		ventana.add_child(lbl)
+		y_pos += 18
+	
+	var btn_cerrar_c = Button.new()
+	btn_cerrar_c.text = "CERRAR"
+	btn_cerrar_c.position = Vector2(225, 435)
+	btn_cerrar_c.size = Vector2(150, 40)
+	aplicar_boton_pixel(btn_cerrar_c, Color(0.35, 0.06, 0.06), Color(0.8, 0.2, 0.2), 11)
+	btn_cerrar_c.pressed.connect(func(): panel_creditos.hide())
+	agregar_hover_sonido(btn_cerrar_c)
+	ventana.add_child(btn_cerrar_c)
+
+func _on_info():
+	panel_creditos.show()
 
 # ====== INSTRUCCIONES ======
 func crear_panel_instrucciones():
@@ -164,109 +373,78 @@ func crear_panel_instrucciones():
 	
 	var fondo_oscuro = ColorRect.new()
 	fondo_oscuro.set_anchors_preset(Control.PRESET_FULL_RECT)
-	fondo_oscuro.color = Color(0, 0, 0, 0.7)
+	fondo_oscuro.color = Color(0, 0, 0, 0.85)
 	panel_instrucciones.add_child(fondo_oscuro)
 	
 	var ventana = Panel.new()
 	ventana.position = Vector2(76, 24)
 	ventana.size = Vector2(1000, 600)
-	var estilo = StyleBoxFlat.new()
-	estilo.bg_color = Color(0.08, 0.08, 0.2, 0.98)
-	estilo.border_width_bottom = 3
-	estilo.border_width_top = 3
-	estilo.border_width_left = 3
-	estilo.border_width_right = 3
-	estilo.border_color = Color(0.3, 0.5, 1)
-	estilo.corner_radius_top_left = 15
-	estilo.corner_radius_top_right = 15
-	estilo.corner_radius_bottom_left = 15
-	estilo.corner_radius_bottom_right = 15
-	ventana.add_theme_stylebox_override("panel", estilo)
+	ventana.add_theme_stylebox_override("panel", TemaPixel.crear_panel_pixel(
+		Color(0.05, 0.05, 0.16, 0.98), Color(0.2, 0.4, 0.85)
+	))
 	panel_instrucciones.add_child(ventana)
 	
 	var titulo_inst = Label.new()
-	titulo_inst.text = "📋  INSTRUCCIONES"
+	titulo_inst.text = "INSTRUCCIONES"
 	titulo_inst.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	titulo_inst.position = Vector2(250, 12)
+	titulo_inst.position = Vector2(250, 15)
 	titulo_inst.size = Vector2(500, 40)
-	titulo_inst.add_theme_font_size_override("font_size", 28)
-	titulo_inst.add_theme_color_override("font_color", Color(1, 0.9, 0.2))
+	TemaPixel.aplicar_fuente_label(titulo_inst, 22)
+	titulo_inst.add_theme_color_override("font_color", Color(1, 0.85, 0.1))
 	ventana.add_child(titulo_inst)
 	
 	var scroll = ScrollContainer.new()
-	scroll.position = Vector2(20, 60)
-	scroll.size = Vector2(960, 470)
+	scroll.position = Vector2(25, 60)
+	scroll.size = Vector2(950, 470)
 	ventana.add_child(scroll)
 	
 	var vbox = VBoxContainer.new()
 	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(vbox)
 	
-	agregar_seccion(vbox, "🎯  OBJETIVO:", [
-		"Conecta 4 fichas en línea (horizontal, vertical o diagonal) para ganar."
+	agregar_seccion(vbox, ":: OBJETIVO ::", ["Conecta 4 fichas en linea para ganar."])
+	agregar_seccion(vbox, ":: COMO EMPEZAR ::", [
+		"1. Presiona JUGAR.", "2. Elige una categoria.", "3. Presiona COMENZAR."
 	])
-	agregar_seccion(vbox, "⏰  MECÁNICA:", [
-		"• Cada turno debes responder una pregunta de inglés",
-		"• Si aciertas, puedes lanzar una ficha en el tablero",
-		"• Si fallas, pierdes tu turno",
-		"• Tienes 15 segundos para responder"
+	agregar_seccion(vbox, ":: MECANICA ::", [
+		"Responde preguntas cada turno.", "Acierto = lanza ficha.", "Fallo = pierdes turno.", "20 segundos por pregunta."
 	])
-	agregar_seccion(vbox, "⚡  PODERES ESPECIALES:", [
-		"Se ganan al responder 2 preguntas correctas seguidas (racha).",
-		"El poder ganado es aleatorio entre:"
+	agregar_seccion(vbox, ":: PODERES (racha de 2) ::", [
+		"[BOMBA] Destruye ficha enemiga.", "[HIELO] Congela una columna."
 	])
-	agregar_seccion(vbox, "      💣  BOMBA:", [
-		"            Selecciona y destruye una ficha del oponente.",
-		"            Las fichas de arriba caerán para llenar el espacio.",
-		"            No funciona en columnas congeladas."
+	agregar_seccion(vbox, ":: CONTROLES ::", [
+		"[1] Normal  [2] Bomba  [3] Hielo", "[ESC] Cancelar  [P] Pausar"
 	])
-	agregar_seccion(vbox, "      ❄️  HIELO:", [
-		"            Congela una columna completa.",
-		"            Nadie puede lanzar fichas ni destruir fichas ahí.",
-		"            Se descongela cuando vuelve a ser tu turno.",
-		"            Después de congelar, aún puedes lanzar tu ficha normal."
-	])
-	agregar_seccion(vbox, "🎹  CONTROLES:", [
-		"      [1]  Seleccionar ficha normal",
-		"      [2]  Seleccionar bomba",
-		"      [3]  Seleccionar hielo",
-		"      [Esc]  Cancelar selección de poder"
-	])
+	agregar_seccion(vbox, ":: MUSICA ::", ["Boton en esquina superior izquierda."])
 	
 	var btn_cerrar = Button.new()
-	btn_cerrar.text = "✖  CERRAR"
-	btn_cerrar.position = Vector2(425, 542)
-	btn_cerrar.size = Vector2(150, 45)
-	btn_cerrar.add_theme_font_size_override("font_size", 18)
-	aplicar_estilo_boton(btn_cerrar, Color(0.5, 0.1, 0.1), Color(1, 0.3, 0.3))
+	btn_cerrar.text = "CERRAR [X]"
+	btn_cerrar.position = Vector2(400, 542)
+	btn_cerrar.size = Vector2(200, 45)
+	aplicar_boton_pixel(btn_cerrar, Color(0.35, 0.06, 0.06), Color(0.8, 0.2, 0.2), 12)
 	btn_cerrar.pressed.connect(_on_cerrar_instrucciones)
 	agregar_hover_sonido(btn_cerrar)
 	ventana.add_child(btn_cerrar)
 
 func agregar_seccion(contenedor, titulo, lineas):
-	var separador = Control.new()
-	separador.custom_minimum_size = Vector2(0, 8)
-	contenedor.add_child(separador)
-	
-	var label_titulo = Label.new()
-	label_titulo.text = titulo
-	label_titulo.add_theme_font_size_override("font_size", 17)
-	label_titulo.add_theme_color_override("font_color", Color(0.4, 0.7, 1))
-	contenedor.add_child(label_titulo)
-	
+	var sep = Control.new()
+	sep.custom_minimum_size = Vector2(0, 10)
+	contenedor.add_child(sep)
+	var lt = Label.new()
+	lt.text = titulo
+	TemaPixel.aplicar_fuente_label(lt, 12)
+	lt.add_theme_color_override("font_color", Color(0.4, 0.75, 1))
+	contenedor.add_child(lt)
 	for linea in lineas:
-		var label_linea = Label.new()
-		label_linea.text = linea
-		label_linea.add_theme_font_size_override("font_size", 15)
-		label_linea.add_theme_color_override("font_color", Color(0.82, 0.82, 0.92))
-		label_linea.autowrap_mode = TextServer.AUTOWRAP_WORD
-		contenedor.add_child(label_linea)
+		var ll = Label.new()
+		ll.text = linea
+		TemaPixel.aplicar_fuente_label(ll, 12)
+		ll.add_theme_color_override("font_color", Color(0.78, 0.78, 0.9))
+		ll.autowrap_mode = TextServer.AUTOWRAP_WORD
+		contenedor.add_child(ll)
 
-# ====== NAVEGACIÓN ======
 func _on_jugar():
-	# Guardar la dificultad seleccionada en un Autoload global
-	Global.dificultad = dificultad_seleccionada
-	get_tree().change_scene_to_file("res://juego_principal.tscn")
+	panel_categorias.show()
 
 func _on_instrucciones():
 	panel_instrucciones.show()
