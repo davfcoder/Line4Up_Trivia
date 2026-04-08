@@ -109,11 +109,11 @@ func _draw():
 	var grid_alpha = 0.08 + sin(tiempo * 0.3) * 0.03
 	for x in range(0, 1160, 60):
 		for y in range(0, 648, 4):
-			if (y / 4) % 3 == 0:
+			if int(y / 4.0) % 3 == 0:
 				draw_rect(Rect2(x, y, 1, 2), Color(0.2, 0.3, 0.6, grid_alpha))
 	for y in range(0, 656, 60):
 		for x in range(0, 1152, 4):
-			if (x / 4) % 3 == 0:
+			if int(x / 4) % 3 == 0:
 				draw_rect(Rect2(x, y, 2, 1), Color(0.2, 0.3, 0.6, grid_alpha))
 	
 	# Circuitos con pulso

@@ -5,6 +5,9 @@ var musica_activa = true
 var categoria = "ingles"
 var abrir_categorias = false
 
+var mi_rol_multijugador = 1 # 1 será el Host (Rojo), 2 será el Cliente (Amarillo)
+var es_multijugador = false # Para saber si jugamos local u online
+
 const TemaPixel = preload("res://efectos/tema_pixel.gd")
 const IconoPixel = preload("res://efectos/icono_pixel.gd")
 
