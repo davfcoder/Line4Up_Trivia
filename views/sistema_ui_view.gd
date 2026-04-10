@@ -64,3 +64,59 @@ func ocultar_boton_fullscreen():
 func mostrar_boton_fullscreen():
 	if boton_fullscreen:
 		boton_fullscreen.show()
+
+var popup_actual: Node = null
+
+func cerrar_popups():
+	if popup_actual != null and is_instance_valid(popup_actual):
+		popup_actual.queue_free()
+		popup_actual = null
+
+func _crear_base_popup(texto: String) -> Panel:
+	cerrar_popups()
+	var bg = ColorRect.new()
+	bg.name = "PopupFondo"
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.color = Color(0, 0, 0, 0.85)
+	bg.z_index = 200
+	capa_ui.add_child(bg)
+	popup_actual = bg
+	
+	var panel = Panel.new()
+	panel.size = Vector2(500, 220)
+	panel.position = Vector2(1152/2.0 - 250, 648/2.0 - 110)
+	panel.add_theme_stylebox_override("panel", TemaPixel.crear_panel_pixel(Color(0.1, 0.1, 0.18, 0.98), Color(0.3, 0.5, 0.8)))
+	bg.add_child(panel)
+	
+	var lbl = Label.new()
+	lbl.text = texto
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lbl.size = Vector2(500, 130)
+	TemaPixel.aplicar_fuente_label(lbl, 14)
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
+	panel.add_child(lbl)
+	
+	return panel
+
+func mostrar_popup_aviso(texto: String):
+	_crear_base_popup(texto)
+
+func mostrar_popup_pregunta(texto: String, cb_si: Callable, cb_no: Callable, aplicar_boton_callback: Callable):
+	var panel = _crear_base_popup(texto)
+	
+	var btn_si = Button.new()
+	btn_si.text = "SI, ACEPTO"
+	btn_si.size = Vector2(180, 45)
+	btn_si.position = Vector2(50, 140)
+	aplicar_boton_callback.call(btn_si, Color(0.06, 0.38, 0.12), Color(0.15, 0.85, 0.25), 11)
+	btn_si.pressed.connect(cb_si)
+	panel.add_child(btn_si)
+	
+	var btn_no = Button.new()
+	btn_no.text = "NO"
+	btn_no.size = Vector2(180, 45)
+	btn_no.position = Vector2(270, 140)
+	aplicar_boton_callback.call(btn_no, Color(0.38, 0.06, 0.06), Color(0.85, 0.15, 0.15), 11)
+	btn_no.pressed.connect(cb_no)
+	panel.add_child(btn_no)

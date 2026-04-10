@@ -67,18 +67,22 @@ theme_override_constants/separation = 15
 [node name="A" type="Button" parent="CapaUI/PantallaPregunta/ContenedorBotones" unique_id=927517820]
 layout_mode = 2
 theme_override_colors/font_hover_color = Color(0, 0.7494335, 0, 1)
+autowrap_mode = 2
 
 [node name="B" type="Button" parent="CapaUI/PantallaPregunta/ContenedorBotones" unique_id=740222296]
 layout_mode = 2
 theme_override_colors/font_hover_color = Color(0, 0.7494335, 0, 1)
+autowrap_mode = 2
 
 [node name="C" type="Button" parent="CapaUI/PantallaPregunta/ContenedorBotones" unique_id=1323849831]
 layout_mode = 2
 theme_override_colors/font_hover_color = Color(0, 0.7494335, 0, 1)
+autowrap_mode = 2
 
 [node name="D" type="Button" parent="CapaUI/PantallaPregunta/ContenedorBotones" unique_id=112784136]
 layout_mode = 2
 theme_override_colors/font_hover_color = Color(0, 0.7494335, 0, 1)
+autowrap_mode = 2
 
 [node name="Temporizador" type="Timer" parent="." unique_id=1241341728]
 wait_time = 20.0

@@ -7,11 +7,10 @@ signal jugador_conectado
 signal conexion_fallida
 signal servidor_desconectado
 
-# ⚠️ Empezamos en null, se crea nuevo cada vez
 var peer: ENetMultiplayerPeer = null
 
 func crear_servidor():
-	_limpiar_peer()
+	cerrar_conexion() # Limpieza forzada
 	
 	peer = ENetMultiplayerPeer.new()
 	var error = peer.create_server(PUERTO, 2)
@@ -27,12 +26,13 @@ func crear_servidor():
 			multiplayer.peer_disconnected.connect(_on_jugador_desconectado)
 	else:
 		print("Error al crear servidor: ", error)
+		peer = null
 
 func unirse_a_servidor(ip_host: String):
 	if ip_host == "":
 		ip_host = "127.0.0.1"
 	
-	_limpiar_peer()
+	cerrar_conexion() # Limpieza forzada
 	
 	peer = ENetMultiplayerPeer.new()
 	var error = peer.create_client(ip_host, PUERTO)
@@ -49,9 +49,19 @@ func unirse_a_servidor(ip_host: String):
 			multiplayer.server_disconnected.connect(_on_servidor_desconectado_cb)
 	else:
 		print("Error al iniciar cliente: ", error)
+		peer = null
 
-func _limpiar_peer():
-	# Desconectar todas las señales del multiplayer
+# Función pública para cerrar y liberar el puerto
+func cerrar_conexion():
+	# 1. Liberar el peer de Godot de forma segura
+	multiplayer.multiplayer_peer = null 
+	
+	# 2. Cerrar y destruir el socket de red
+	if peer != null:
+		peer.close()
+		peer = null
+	
+	# 3. Limpiar señales
 	if multiplayer.peer_connected.is_connected(_on_jugador_conectado):
 		multiplayer.peer_connected.disconnect(_on_jugador_conectado)
 	if multiplayer.peer_disconnected.is_connected(_on_jugador_desconectado):
@@ -62,15 +72,7 @@ func _limpiar_peer():
 		multiplayer.connection_failed.disconnect(_on_conexion_fallida_cb)
 	if multiplayer.server_disconnected.is_connected(_on_servidor_desconectado_cb):
 		multiplayer.server_disconnected.disconnect(_on_servidor_desconectado_cb)
-	
-	# Cerrar y destruir peer anterior
-	if peer != null:
-		peer.close()
-		peer = null
-	
-	multiplayer.multiplayer_peer = null
 
-# Función pública para consultar estado (usada en menu_principal)
 func get_connection_status() -> int:
 	if peer == null:
 		return MultiplayerPeer.CONNECTION_DISCONNECTED

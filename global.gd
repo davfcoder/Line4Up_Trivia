@@ -23,12 +23,17 @@ func reproducir_transicion(sonido):
 	_sonido_transicion.play()
 
 func crear_boton_musica(padre, callback):
+	var existente = padre.get_node_or_null("BotonMusica")
+	if existente:
+		existente.queue_free()
+	
 	var btn = Button.new()
 	btn.name = "BotonMusica"
 	btn.text = ""
 	btn.position = Vector2(10, 10)
 	btn.size = Vector2(45, 45)
 	btn.z_index = 50
+	btn.mouse_filter = Control.MOUSE_FILTER_STOP
 	
 	var estilos = TemaPixel.crear_boton_pixel(
 		Color(0.08, 0.25, 0.12, 0.9),
@@ -44,6 +49,7 @@ func crear_boton_musica(padre, callback):
 	var icono = IconoPixel.crear(tipo_icono, 28.0)
 	icono.name = "IconoMusica"
 	icono.position = Vector2(8, 8)
+	icono.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	btn.add_child(icono)
 	return btn
 

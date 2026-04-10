@@ -46,17 +46,19 @@ func aplicar_estilo_empate():
 		))
 
 func ocultar_botones_trivia():
+	# Ocultar los botones de las opciones
 	for boton in contenedor_botones.get_children():
 		boton.hide()
+	
+	# Buscar y ocultar la barra verde de tiempo (ProgressBar o ColorRect)
+	for child in pantalla_pregunta.get_children():
+		if child is ProgressBar or child is ColorRect:
+			child.hide()
 
 func mostrar_panel_victoria(
-	turno_actual: int,
-	es_multijugador: bool,
-	mi_rol_multijugador: int,
-	callback_reiniciar: Callable,
-	callback_menu: Callable,
-	callback_hover: Callable,
-	aplicar_boton_callback: Callable
+	turno_actual: int, es_multijugador: bool, mi_rol_multijugador: int,
+	callback_reiniciar: Callable, callback_menu: Callable, callback_cambiar_cat: Callable,
+	callback_hover: Callable, aplicar_boton_callback: Callable
 ):
 	var soy_perdedor = (es_multijugador and turno_actual != mi_rol_multijugador)
 	var color_nombre = Color(1, 0.3, 0.3) if turno_actual == 1 else Color(1, 0.85, 0.1)
@@ -80,36 +82,39 @@ func mostrar_panel_victoria(
 	pantalla_pregunta.show()
 	
 	var pw = pantalla_pregunta.size.x
-	var btn_ancho = 300
+	var btn_ancho = 280
 	var btn_x = (pw - btn_ancho) / 2.0
 	
 	var btn_jugar_nuevo = Button.new()
-	btn_jugar_nuevo.name = "BtnJugarNuevoVic"
 	btn_jugar_nuevo.text = "JUGAR DE NUEVO"
-	btn_jugar_nuevo.position = Vector2(btn_x, pantalla_pregunta.size.y - 170)
-	btn_jugar_nuevo.size = Vector2(btn_ancho, 55)
-	aplicar_boton_callback.call(btn_jugar_nuevo, Color(0.06, 0.38, 0.12), Color(0.15, 0.85, 0.25), 12)
+	btn_jugar_nuevo.position = Vector2(btn_x, pantalla_pregunta.size.y - 200)
+	btn_jugar_nuevo.size = Vector2(btn_ancho, 45)
+	aplicar_boton_callback.call(btn_jugar_nuevo, Color(0.06, 0.38, 0.12), Color(0.15, 0.85, 0.25), 11)
 	btn_jugar_nuevo.pressed.connect(callback_reiniciar)
 	btn_jugar_nuevo.mouse_entered.connect(callback_hover)
 	pantalla_pregunta.add_child(btn_jugar_nuevo)
 	
-	var btn_ancho2 = 260
-	var btn_x2 = (pw - btn_ancho2) / 2.0
+	var btn_cambiar_cat = Button.new()
+	btn_cambiar_cat.text = "CAMBIAR CATEGORIA"
+	btn_cambiar_cat.position = Vector2(btn_x, pantalla_pregunta.size.y - 145)
+	btn_cambiar_cat.size = Vector2(btn_ancho, 45)
+	aplicar_boton_callback.call(btn_cambiar_cat, Color(0.1, 0.2, 0.4), Color(0.3, 0.5, 0.9), 11)
+	btn_cambiar_cat.pressed.connect(callback_cambiar_cat)
+	btn_cambiar_cat.mouse_entered.connect(callback_hover)
+	pantalla_pregunta.add_child(btn_cambiar_cat)
+	
 	var btn_menu_vic = Button.new()
-	btn_menu_vic.name = "BtnMenuVictoria"
 	btn_menu_vic.text = "MENU PRINCIPAL"
-	btn_menu_vic.position = Vector2(btn_x2, pantalla_pregunta.size.y - 100)
-	btn_menu_vic.size = Vector2(btn_ancho2, 45)
+	btn_menu_vic.position = Vector2(btn_x, pantalla_pregunta.size.y - 90)
+	btn_menu_vic.size = Vector2(btn_ancho, 45)
 	aplicar_boton_callback.call(btn_menu_vic, Color(0.3, 0.08, 0.08), Color(0.75, 0.25, 0.25), 11)
 	btn_menu_vic.pressed.connect(callback_menu)
 	btn_menu_vic.mouse_entered.connect(callback_hover)
 	pantalla_pregunta.add_child(btn_menu_vic)
 
 func mostrar_panel_empate(
-	callback_reiniciar: Callable,
-	callback_menu: Callable,
-	callback_hover: Callable,
-	aplicar_boton_callback: Callable
+	callback_reiniciar: Callable, callback_menu: Callable, callback_cambiar_cat: Callable,
+	callback_hover: Callable, aplicar_boton_callback: Callable
 ):
 	texto_pregunta.text = "EMPATE!"
 	texto_pregunta.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -125,26 +130,31 @@ func mostrar_panel_empate(
 	pantalla_pregunta.show()
 	
 	var pw = pantalla_pregunta.size.x
-	var btn_ancho = 300
+	var btn_ancho = 280
 	var btn_x = (pw - btn_ancho) / 2.0
 	
 	var btn_jugar_nuevo = Button.new()
-	btn_jugar_nuevo.name = "BtnJugarNuevoVic"
 	btn_jugar_nuevo.text = "JUGAR DE NUEVO"
-	btn_jugar_nuevo.position = Vector2(btn_x, pantalla_pregunta.size.y - 170)
-	btn_jugar_nuevo.size = Vector2(btn_ancho, 55)
-	aplicar_boton_callback.call(btn_jugar_nuevo, Color(0.06, 0.38, 0.12), Color(0.15, 0.85, 0.25), 12)
+	btn_jugar_nuevo.position = Vector2(btn_x, pantalla_pregunta.size.y - 200)
+	btn_jugar_nuevo.size = Vector2(btn_ancho, 45)
+	aplicar_boton_callback.call(btn_jugar_nuevo, Color(0.06, 0.38, 0.12), Color(0.15, 0.85, 0.25), 11)
 	btn_jugar_nuevo.pressed.connect(callback_reiniciar)
 	btn_jugar_nuevo.mouse_entered.connect(callback_hover)
 	pantalla_pregunta.add_child(btn_jugar_nuevo)
 	
-	var btn_ancho2 = 260
-	var btn_x2 = (pw - btn_ancho2) / 2.0
+	var btn_cambiar_cat = Button.new()
+	btn_cambiar_cat.text = "CAMBIAR CATEGORIA"
+	btn_cambiar_cat.position = Vector2(btn_x, pantalla_pregunta.size.y - 145)
+	btn_cambiar_cat.size = Vector2(btn_ancho, 45)
+	aplicar_boton_callback.call(btn_cambiar_cat, Color(0.1, 0.2, 0.4), Color(0.3, 0.5, 0.9), 11)
+	btn_cambiar_cat.pressed.connect(callback_cambiar_cat)
+	btn_cambiar_cat.mouse_entered.connect(callback_hover)
+	pantalla_pregunta.add_child(btn_cambiar_cat)
+	
 	var btn_menu_emp = Button.new()
-	btn_menu_emp.name = "BtnMenuVictoria"
 	btn_menu_emp.text = "MENU PRINCIPAL"
-	btn_menu_emp.position = Vector2(btn_x2, pantalla_pregunta.size.y - 100)
-	btn_menu_emp.size = Vector2(btn_ancho2, 45)
+	btn_menu_emp.position = Vector2(btn_x, pantalla_pregunta.size.y - 90)
+	btn_menu_emp.size = Vector2(btn_ancho, 45)
 	aplicar_boton_callback.call(btn_menu_emp, Color(0.3, 0.08, 0.08), Color(0.75, 0.25, 0.25), 11)
 	btn_menu_emp.pressed.connect(callback_menu)
 	btn_menu_emp.mouse_entered.connect(callback_hover)

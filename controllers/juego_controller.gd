@@ -113,7 +113,7 @@ func _ready():
 	hud_view.actualizar_inventario(jugador1_model, jugador2_model)
 	conectar_botones_trivia()
 	trivia_view.estilizar_pantalla_pregunta(Callable(self, "_aplicar_boton_pixel"))
-	
+
 	if not temporizador.timeout.is_connected(_on_tiempo_agotado):
 		temporizador.timeout.connect(_on_tiempo_agotado)
 	
@@ -131,7 +131,8 @@ func _ready():
 		Callable(self, "_on_pausa_reiniciar"),
 		Callable(self, "_on_pausa_menu"),
 		Callable(self, "toggle_pausa"),
-		Callable(self, "_on_hover")
+		Callable(self, "_on_hover"),
+		Callable(self, "_on_cambiar_categoria")
 	)
 	
 	if Global.es_multijugador:
@@ -316,33 +317,38 @@ func _aplicar_pregunta_visual():
 		Global.es_multijugador, trivia_model.pregunta_actual,
 		Callable(self, "_aplicar_boton_pixel")
 	)
+	
 	temporizador.stop()
 	temporizador.start(20.0)
 
 func _on_boton_trivia_presionado(indice):
-	reproductor_tick.stop()
-	if game_model.fase_juego != "PREGUNTA": return
+	if game_model.fase_juego != GameModel.FASE_PREGUNTA: return
 	if not NetworkHelper.es_mi_turno(game_model.turno_actual): return
 	
+	game_model.fase_juego = "PROCESANDO" # Bloqueo inmediato para evitar doble clic
+	reproductor_tick.stop()
 	temporizador.stop()
+	
 	var correcto = trivia_model.es_respuesta_correcta(indice)
 	if Global.es_multijugador: rpc("rpc_resultado_pregunta", correcto)
 	_procesar_resultado_pregunta(correcto)
 
 func _on_tiempo_agotado():
-	reproductor_tick.stop()
-	if game_model.fase_juego != "PREGUNTA": return
+	if game_model.fase_juego != GameModel.FASE_PREGUNTA: return
 	if not NetworkHelper.es_mi_turno(game_model.turno_actual): return
+	
+	game_model.fase_juego = "PROCESANDO" # Bloqueo inmediato
+	reproductor_tick.stop()
 	
 	if Global.es_multijugador: rpc("rpc_resultado_pregunta", false)
 	_procesar_resultado_pregunta(false)
 
 func _procesar_resultado_pregunta(fue_correcto):
 	if fue_correcto:
-		reproducir_ui(SFX.correcto)
+		reproducir_efecto(SFX.correcto) 
 		_manejar_acierto()
 	else:
-		reproducir_ui(SFX.incorrecto)
+		reproducir_efecto(SFX.incorrecto)
 		_manejar_fallo()
 
 func _manejar_acierto():
@@ -360,6 +366,7 @@ func _manejar_acierto():
 	_mostrar_botones_poder()
 
 func _manejar_fallo():
+	game_model.fase_juego = "ERROR_MOSTRADO"
 	obtener_jugador_actual().registrar_fallo()
 	_mostrar_mensaje_error()
 
@@ -372,15 +379,29 @@ func _mostrar_mensaje_error():
 		Callable(self, "_on_hover"),
 		Callable(self, "_aplicar_boton_pixel")
 	)
-	get_tree().create_timer(5.0).timeout.connect(func():
-		var btn = trivia_view.obtener_boton_continuar()
-		if btn and is_instance_valid(btn):
-			_on_continuar_despues_error(btn)
-	)
+	
+	# Solo el jugador de este turno inicia el contador automático de 5s.
+	if not Global.es_multijugador or NetworkHelper.es_mi_turno(game_model.turno_actual):
+		var btn = pantalla_pregunta.get_node_or_null("BotonContinuar")
+		if btn:
+			# Pasamos el ID único del botón para evitar cruces con turnos futuros
+			get_tree().create_timer(5.0).timeout.connect(_auto_continuar.bind(btn.get_instance_id()))
+
+func _auto_continuar(btn_id: int):
+	if game_model.fase_juego == "ERROR_MOSTRADO":
+		var btn_actual = pantalla_pregunta.get_node_or_null("BotonContinuar")
+		# Solo avanza si el botón en pantalla es EXACTAMENTE el mismo que creó este temporizador
+		if btn_actual and btn_actual.get_instance_id() == btn_id:
+			_on_continuar_despues_error(btn_actual)
 
 func _on_continuar_despues_error(boton):
-	if not NetworkHelper.es_mi_turno(game_model.turno_actual): return
-	if Global.es_multijugador: rpc("rpc_continuar_error")
+	if game_model.fase_juego != "ERROR_MOSTRADO": return
+	game_model.fase_juego = "CAMBIANDO_TURNO"
+	
+	# Solo el dueño del turno avisa al otro que ya se acabó el tiempo de espera
+	if Global.es_multijugador and NetworkHelper.es_mi_turno(game_model.turno_actual):
+		rpc("rpc_continuar_error")
+		
 	_procesar_continuar_error(boton)
 
 func _procesar_continuar_error(boton):
@@ -553,6 +574,9 @@ func _ocultar_ui_fin():
 	pausa_view.ocultar_boton_pausa()
 	sistema_ui_view.ocultar_boton_musica()
 	sistema_ui_view.ocultar_boton_fullscreen()
+	# Limpiar el overlay de espera si estaba activo
+	var overlay = pantalla_pregunta.get_node_or_null("OverlayEspera")
+	if overlay: overlay.hide()
 
 func _mostrar_victoria():
 	_ocultar_ui_fin()
@@ -576,7 +600,8 @@ func _mostrar_victoria():
 	resultado_view.mostrar_panel_victoria(
 		game_model.turno_actual, Global.es_multijugador, Global.mi_rol_multijugador,
 		Callable(self, "_on_reiniciar"), Callable(self, "_on_ir_menu_principal"),
-		Callable(self, "_on_hover"), Callable(self, "_aplicar_boton_pixel")
+		Callable(self, "_on_hover"), Callable(self, "_aplicar_boton_pixel"),
+		Callable(self, "_on_cambiar_categoria")
 	)
 
 func _mostrar_empate():
@@ -591,45 +616,78 @@ func _mostrar_empate():
 	hud_view.boton_reiniciar.hide()
 	resultado_view.mostrar_panel_empate(
 		Callable(self, "_on_reiniciar"), Callable(self, "_on_ir_menu_principal"),
-		Callable(self, "_on_hover"), Callable(self, "_aplicar_boton_pixel")
+		Callable(self, "_on_hover"), Callable(self, "_aplicar_boton_pixel"),
+		Callable(self, "_on_cambiar_categoria")
 	)
 
 # ====== NAVEGACIÓN ======
+var procesando_salida = false
+
 func _on_reiniciar():
-	if Global.es_multijugador: rpc("rpc_cambiar_escena", "res://juego_principal.tscn", true)
-	_procesar_cambio_escena("res://juego_principal.tscn", true)
+	if procesando_salida: return
+	
+	if Global.es_multijugador:
+		sistema_ui_view.mostrar_popup_aviso("Esperando respuesta del rival...")
+		rpc("rpc_solicitar_revancha")
+	else:
+		procesando_salida = true
+		_procesar_cambio_escena("res://juego_principal.tscn", true)
 
 func _on_ir_menu_principal():
+	# Si presionan ir al menú, actuamos como abandono para avisar al rival
 	_salir_y_avisar()
 
 func _salir_y_avisar():
-	Global.reproducir_transicion(SFX.retirar_fichas)
-	Global.abrir_categorias = false
+	if procesando_salida: return
+	procesando_salida = true
+	
 	if Global.es_multijugador:
-		if NetworkHelper.soy_host():
-			rpc("rpc_rival_abandono")
-		NetworkHelper.desconectar()
-	await get_tree().create_timer(0.1).timeout
-	get_tree().change_scene_to_file("res://menu_principal.tscn")
+		rpc("rpc_rival_abandono")
+		await get_tree().create_timer(0.1).timeout
+	_procesar_cambio_escena("res://menu_principal.tscn", false)
 
 func _procesar_cambio_escena(ruta, abrir_cat):
+	get_tree().paused = false
 	Global.reproducir_transicion(SFX.retirar_fichas)
 	Global.abrir_categorias = abrir_cat
 	if not abrir_cat and Global.es_multijugador:
 		NetworkHelper.desconectar()
 	get_tree().change_scene_to_file(ruta)
 
+func _on_cambiar_categoria():
+	if procesando_salida: return
+	
+	if Global.es_multijugador:
+		juego_pausado = false
+		pausa_view.ocultar_panel()
+		_pausar_tiempo_red(true)
+		sistema_ui_view.mostrar_popup_aviso("Esperando a que el rival acepte cambiar categoria...")
+		rpc("rpc_solicitar_cambio_categoria")
+	else:
+		procesando_salida = true
+		_procesar_cambio_escena("res://menu_principal.tscn", true) # True = Abre el selector para ambos
+
 func _on_rival_desconectado():
-	if game_model.juego_terminado: return
-	game_model.juego_terminado = true
 	Global.es_multijugador = false
+	
 	if is_inside_tree():
 		reproducir_ui(SFX.incorrecto)
-		if pantalla_pregunta: pantalla_pregunta.hide()
-		hud_view.mostrar_notificacion("¡EL RIVAL SE HA DESCONECTADO!")
+		
+		# Si el juego ya había terminado (pantalla de victoria/empate)
+		if game_model.juego_terminado:
+			sistema_ui_view.mostrar_popup_aviso("El rival ha abandonado la sala.\nVolviendo al menu principal...")
+		# Si el juego se interrumpió a la mitad
+		else:
+			game_model.juego_terminado = true
+			if pantalla_pregunta: pantalla_pregunta.hide()
+			hud_view.mostrar_notificacion("¡EL RIVAL SE HA DESCONECTADO!")
+			
 		await get_tree().create_timer(3.0).timeout
+		
 		if is_inside_tree():
-			get_tree().change_scene_to_file("res://menu_principal.tscn")
+			procesando_salida = true
+			# CAMBIO: Usamos _procesar_cambio_escena con 'false' para forzar que vaya al menú y limpie variables
+			_procesar_cambio_escena("res://menu_principal.tscn", false)
 
 func cambiar_turno():
 	game_model.cambiar_turno()
@@ -651,11 +709,24 @@ func _on_pausa_continuar():
 	pausa_view.ocultar_panel()
 	get_tree().paused = false
 
+# ====== PAUSA ======
 func _on_pausa_reiniciar():
-	juego_pausado = false
-	pausa_view.ocultar_panel()
-	get_tree().paused = false
-	get_tree().change_scene_to_file("res://juego_principal.tscn")
+	if Global.es_multijugador:
+		juego_pausado = false
+		pausa_view.ocultar_panel()
+		_pausar_tiempo_red(true)
+		sistema_ui_view.mostrar_popup_aviso("Esperando a que el rival acepte el reinicio...")
+		rpc("rpc_solicitar_reinicio")
+	else:
+		juego_pausado = false
+		pausa_view.ocultar_panel()
+		get_tree().paused = false
+		get_tree().change_scene_to_file("res://juego_principal.tscn")
+
+func _pausar_tiempo_red(pausar: bool):
+	temporizador.paused = pausar
+	if is_instance_valid(reproductor_tick):
+		reproductor_tick.stream_paused = pausar
 
 func _on_pausa_menu():
 	juego_pausado = false
@@ -679,6 +750,7 @@ func rpc_recibir_pregunta(pregunta):
 
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_resultado_pregunta(correcto):
+	game_model.fase_juego = "PROCESANDO"
 	reproductor_tick.stop()
 	temporizador.stop()
 	_procesar_resultado_pregunta(correcto)
@@ -688,13 +760,19 @@ func rpc_recibir_poder(jugador, poder): _aplicar_poder_ganado(jugador, poder)
 
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_continuar_error():
-	_procesar_continuar_error(pantalla_pregunta.get_node_or_null("BotonContinuar"))
+	if game_model.fase_juego != "ERROR_MOSTRADO": return
+	game_model.fase_juego = "CAMBIANDO_TURNO"
+	var btn = pantalla_pregunta.get_node_or_null("BotonContinuar")
+	_procesar_continuar_error(btn)
 
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_rival_abandono(): _on_rival_desconectado()
 
 @rpc("any_peer", "call_remote", "reliable")
-func rpc_cambiar_escena(ruta, abrir_cat): _procesar_cambio_escena(ruta, abrir_cat)
+func rpc_cambiar_escena(ruta, abrir_cat): 
+	if procesando_salida: return
+	procesando_salida = true
+	_procesar_cambio_escena(ruta, abrir_cat)
 
 @rpc("any_peer", "call_remote", "unreliable")
 func rpc_sync_mouse(pos, poder):
@@ -705,3 +783,103 @@ func rpc_sync_mouse(pos, poder):
 		board_model.columnas_congeladas_info,
 		Callable(board_model, "buscar_fila_disponible")
 	)
+
+# --- REVANCHA AL FINAL DEL JUEGO ---
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_solicitar_revancha():
+	sistema_ui_view.mostrar_popup_pregunta(
+		"El rival quiere jugar de nuevo.\n¿Aceptas?", 
+		Callable(self, "_responder_revancha").bind(true), 
+		Callable(self, "_responder_revancha").bind(false),
+		Callable(self, "_aplicar_boton_pixel")
+	)
+
+func _responder_revancha(acepta: bool):
+	sistema_ui_view.cerrar_popups()
+	rpc("rpc_respuesta_revancha", acepta)
+	
+	if acepta:
+		procesando_salida = true
+		_procesar_cambio_escena("res://juego_principal.tscn", true)
+	else:
+		procesando_salida = true
+		# Damos una fracción de segundo para asegurar que el RPC viaje por la red antes de desconectar
+		await get_tree().create_timer(0.1).timeout 
+		_procesar_cambio_escena("res://menu_principal.tscn", false)
+
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_respuesta_revancha(acepta: bool):
+	sistema_ui_view.cerrar_popups()
+	if acepta:
+		procesando_salida = true
+		_procesar_cambio_escena("res://juego_principal.tscn", true)
+	else:
+		sistema_ui_view.mostrar_popup_aviso("El rival rechazo jugar de nuevo.\nSaliendo al menu...")
+		await get_tree().create_timer(3.0).timeout
+		procesando_salida = true
+		_procesar_cambio_escena("res://menu_principal.tscn", false)
+
+
+# --- REINICIO EN MEDIO DEL JUEGO (PAUSA) ---
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_solicitar_reinicio():
+	_pausar_tiempo_red(true)
+	sistema_ui_view.mostrar_popup_pregunta(
+		"El rival quiere reiniciar la partida actual.\n¿Aceptas?", 
+		Callable(self, "_responder_reinicio").bind(true), 
+		Callable(self, "_responder_reinicio").bind(false),
+		Callable(self, "_aplicar_boton_pixel")
+	)
+
+func _responder_reinicio(acepta: bool):
+	sistema_ui_view.cerrar_popups()
+	rpc("rpc_respuesta_reinicio", acepta)
+	if acepta:
+		procesando_salida = true
+		_procesar_cambio_escena("res://juego_principal.tscn", true)
+	else:
+		_pausar_tiempo_red(false) # Retoma el tiempo normal
+
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_respuesta_reinicio(acepta: bool):
+	sistema_ui_view.cerrar_popups()
+	if acepta:
+		procesando_salida = true
+		_procesar_cambio_escena("res://juego_principal.tscn", true)
+	else:
+		sistema_ui_view.mostrar_popup_aviso("El rival rechazo el reinicio.")
+		await get_tree().create_timer(2.0).timeout
+		sistema_ui_view.cerrar_popups()
+		_pausar_tiempo_red(false) # Retoma el tiempo normal
+
+# --- CAMBIO DE CATEGORÍA ---
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_solicitar_cambio_categoria():
+	_pausar_tiempo_red(true)
+	sistema_ui_view.mostrar_popup_pregunta(
+		"El rival quiere cambiar de categoria.\n¿Aceptas?", 
+		Callable(self, "_responder_cambio_categoria").bind(true), 
+		Callable(self, "_responder_cambio_categoria").bind(false),
+		Callable(self, "_aplicar_boton_pixel")
+	)
+
+func _responder_cambio_categoria(acepta: bool):
+	sistema_ui_view.cerrar_popups()
+	rpc("rpc_respuesta_cambio_categoria", acepta)
+	if acepta:
+		procesando_salida = true
+		_procesar_cambio_escena("res://menu_principal.tscn", true)
+	else:
+		_pausar_tiempo_red(false) # Retoma el tiempo
+
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_respuesta_cambio_categoria(acepta: bool):
+	sistema_ui_view.cerrar_popups()
+	if acepta:
+		procesando_salida = true
+		_procesar_cambio_escena("res://menu_principal.tscn", true)
+	else:
+		sistema_ui_view.mostrar_popup_aviso("El rival rechazo cambiar de categoria.")
+		await get_tree().create_timer(2.0).timeout
+		sistema_ui_view.cerrar_popups()
+		_pausar_tiempo_red(false)

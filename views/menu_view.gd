@@ -13,6 +13,7 @@ var panel_categorias = null
 var panel_creditos = null
 var input_ip = null
 var label_estado_red = null
+var btn_confirmar_categoria = null
 
 var categorias_disponibles = {
 	"ingles": "INGLES",
@@ -117,6 +118,7 @@ func configurar_botones_principales(btn_jugar, btn_salir, cb_jugar, cb_salir, cb
 	btn_jugar.mouse_entered.connect(cb_hover)
 	
 	var btn_instrucciones = Button.new()
+	btn_instrucciones.name = "BotonInstrucciones"
 	btn_instrucciones.text = "INSTRUCCIONES"
 	btn_instrucciones.position = Vector2(401, 295)
 	btn_instrucciones.size = Vector2(350, 58)
@@ -149,11 +151,18 @@ func configurar_botones_principales(btn_jugar, btn_salir, cb_jugar, cb_salir, cb
 	btn_info.add_child(icono_info)
 
 func crear_boton_fullscreen(cb_toggle, cb_hover):
+	var existente = root.get_node_or_null("BotonFullscreen")
+	if existente:
+		existente.queue_free()
+	
 	var btn_fs = Button.new()
 	btn_fs.name = "BotonFullscreen"
+	btn_fs.text = ""
 	btn_fs.position = Vector2(60, 10)
 	btn_fs.size = Vector2(45, 45)
 	btn_fs.z_index = 50
+	btn_fs.mouse_filter = Control.MOUSE_FILTER_STOP
+	
 	var estilos_fs = TemaPixel.crear_boton_pixel(Color(0.12, 0.12, 0.25, 0.85), Color(0.35, 0.4, 0.7))
 	btn_fs.add_theme_stylebox_override("normal", estilos_fs["normal"])
 	btn_fs.add_theme_stylebox_override("hover", estilos_fs["hover"])
@@ -205,12 +214,17 @@ func crear_panel_instrucciones(cb_cerrar, cb_hover):
 	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(vbox)
 	
-	_agregar_seccion(vbox, ":: OBJETIVO ::", ["Conecta 4 fichas en linea para ganar."])
-	_agregar_seccion(vbox, ":: COMO EMPEZAR ::", ["1. Presiona JUGAR.", "2. Elige una categoria.", "3. Presiona COMENZAR."])
-	_agregar_seccion(vbox, ":: MECANICA ::", ["Responde preguntas cada turno.", "Acierto = lanza ficha.", "Fallo = pierdes turno.", "20 segundos por pregunta."])
-	_agregar_seccion(vbox, ":: PODERES (racha de 2) ::", ["[BOMBA] Destruye ficha enemiga.", "[HIELO] Congela una columna."])
-	_agregar_seccion(vbox, ":: CONTROLES ::", ["[1] Normal  [2] Bomba  [3] Hielo", "[ESC] Cancelar  [P] Pausar"])
-	_agregar_seccion(vbox, ":: MUSICA ::", ["Boton en esquina superior izquierda."])
+	_agregar_seccion(vbox, ":: OBJETIVO ::", ["Conecta 4 fichas de tu color en linea (horizontal, vertical o diagonal) para ganar la partida."])
+	_agregar_seccion(vbox, ":: COMO EMPEZAR ::", [
+		"1. Elige jugar Local (1 vs 1) o Multijugador Online.", 
+		"2. Selecciona una categoria de preguntas, o crea la tuya en '+ PERSONALIZADA'.",
+		"3. Presiona JUGAR."
+	])
+	_agregar_seccion(vbox, ":: MECANICA ::", ["En tu turno, tienes 20 segundos para responder la trivia", "Acierto = lanza ficha.", "Fallo = pierdes turno.", "20 segundos por pregunta."])
+	_agregar_seccion(vbox, ":: PODERES ::", ["Al acertar 2 preguntas seguidas, ganas un poder aleatorio:","- [BOMBA]: Destruye una ficha enemiga del tablero.", "- [HIELO]: Congela una columna por un turno (nadie puede lanzar ahi)."])
+	_agregar_seccion(vbox, ":: CONTROLES ::", ["Usa las teclas: [1] Ficha Normal  [2] Ficha Bomba  [3] Ficha Hielo", "[ESC] Cancelar  [P] Pausar  [F11] Modo Pantalla Completa"])
+	_agregar_seccion(vbox, ":: MUSICA Y FULLSCREEN ::", ["Botones ubicados en esquina superior izquierda."])
+	_agregar_seccion(vbox, ":: CATEGORIAS PERSONALIZADAS ::", ["Puedes crear tus propias rondas de preguntas. Deben tener un minimo de 42 preguntas.", "Usa la opcion 'PLANTILLA' para descargar un formato, rellenarlo en tu PC y luego 'IMPORTAR'."])
 	_agregar_seccion(vbox, ":: MULTIJUGADOR ONLINE ::", [
 		"1. Presiona JUGAR > ONLINE.",
 		"2. Un jugador crea la partida (HOST).",
@@ -261,7 +275,7 @@ func crear_panel_categorias(cb_confirmar, cb_volver, cb_hover, cb_categoria_sel)
 	var btn_volver = Button.new()
 	btn_volver.name = "BtnVolver"
 	btn_volver.text = "< VOLVER"
-	btn_volver.position = Vector2(10, 62)
+	btn_volver.position = Vector2(20, 14)
 	btn_volver.size = Vector2(140, 38)
 	btn_volver.z_index = 60
 	aplicar_boton_pixel(btn_volver, Color(0.35, 0.1, 0.1), Color(0.8, 0.3, 0.3), 10)
@@ -309,25 +323,27 @@ func crear_panel_categorias(cb_confirmar, cb_volver, cb_hover, cb_categoria_sel)
 		btn_cat.add_child(icono_cat)
 		indice += 1
 	
-	var label_sel = Label.new()
-	label_sel.name = "LabelCategoriaSel"
-	label_sel.text = "> INGLES"
-	label_sel.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label_sel.position = Vector2(0, y_offset + indice * (btn_height + btn_spacing) + 5)
-	label_sel.size = Vector2(600, 28)
-	TemaPixel.aplicar_fuente_label(label_sel, 12)
-	label_sel.add_theme_color_override("font_color", Color(0.3, 0.8, 1))
-	ventana.add_child(label_sel)
+		# Botón personalizada
+	var btn_custom = Button.new()
+	btn_custom.name = "BtnCat_personalizada"
+	btn_custom.text = "     + PERSONALIZADA"
+	btn_custom.position = Vector2(btn_x, y_offset + indice * (btn_height + btn_spacing))
+	btn_custom.size = Vector2(btn_width, btn_height)
+	aplicar_boton_pixel(btn_custom, Color(0.2, 0.15, 0.05), Color(0.7, 0.5, 0.15), 13)
+	btn_custom.pressed.connect(cb_categoria_sel.bind("personalizada"))
+	btn_custom.mouse_entered.connect(cb_hover)
+	ventana.add_child(btn_custom)
+	indice += 1
 	
-	var btn_confirmar = Button.new()
-	btn_confirmar.name = "BtnConfirmar"
-	btn_confirmar.text = ">> COMENZAR <<"
-	btn_confirmar.position = Vector2(140, y_offset + indice * (btn_height + btn_spacing) + 42)
-	btn_confirmar.size = Vector2(320, 58)
-	aplicar_boton_pixel(btn_confirmar, Color(0.06, 0.4, 0.12), Color(0.15, 0.9, 0.3), 16)
-	btn_confirmar.pressed.connect(cb_confirmar)
-	btn_confirmar.mouse_entered.connect(cb_hover)
-	ventana.add_child(btn_confirmar)
+	btn_confirmar_categoria = Button.new()
+	btn_confirmar_categoria.name = "BtnConfirmar"
+	btn_confirmar_categoria.text = "> Jugar INGLES <"
+	btn_confirmar_categoria.position = Vector2(140, 480)
+	btn_confirmar_categoria.size = Vector2(320, 52)
+	aplicar_boton_pixel(btn_confirmar_categoria, Color(0.06, 0.4, 0.12), Color(0.15, 0.9, 0.3), 12)
+	btn_confirmar_categoria.pressed.connect(cb_confirmar)
+	btn_confirmar_categoria.mouse_entered.connect(cb_hover)
+	ventana.add_child(btn_confirmar_categoria)
 
 func resaltar_categoria(clave_seleccionada: String):
 	var ventana = panel_categorias.get_node("VentanaCategorias")
@@ -338,11 +354,35 @@ func resaltar_categoria(clave_seleccionada: String):
 				aplicar_boton_pixel(btn, Color(0.1, 0.28, 0.5), Color(0.25, 0.65, 1), 13)
 			else:
 				aplicar_boton_pixel(btn, Color(0.08, 0.08, 0.2), Color(0.2, 0.3, 0.6), 13)
+	# Personalizada
+	var btn_custom = ventana.get_node_or_null("BtnCat_personalizada")
+	if btn_custom:
+		if clave_seleccionada == "personalizada":
+			aplicar_boton_pixel(btn_custom, Color(0.3, 0.25, 0.08), Color(0.9, 0.7, 0.2), 13)
+		else:
+			aplicar_boton_pixel(btn_custom, Color(0.2, 0.15, 0.05), Color(0.7, 0.5, 0.15), 13)
+
+func _texto_categoria_para_boton(texto: String, max_chars: int = 12) -> String:
+	var limpio = texto.strip_edges()
+	if limpio.length() <= max_chars:
+		return limpio
+	return limpio.substr(0, max_chars).strip_edges() + "..."
 
 func actualizar_label_categoria(clave: String):
-	var ventana = panel_categorias.get_node("VentanaCategorias")
-	var label = ventana.get_node("LabelCategoriaSel")
-	label.text = "> " + categorias_disponibles[clave]
+	var texto_cat = ""
+	
+	if categorias_disponibles.has(clave):
+		texto_cat = categorias_disponibles[clave]
+	elif clave == "personalizada":
+		texto_cat = "PERSONALIZADA"
+	elif clave.begins_with("custom_"):
+		texto_cat = clave.replace("custom_", "").to_upper()
+	else:
+		texto_cat = clave.to_upper()
+	
+	if btn_confirmar_categoria:
+		var texto_corto = _texto_boton_categoria(texto_cat, 12)
+		btn_confirmar_categoria.text = "> Jugar " + texto_corto + " <"
 
 func bloquear_categorias_cliente():
 	var ventana = panel_categorias.get_node("VentanaCategorias")
@@ -353,11 +393,11 @@ func bloquear_categorias_cliente():
 	if lbl_sel: lbl_sel.hide()
 	var titulo = ventana.get_child(0)
 	if titulo is Label:
-		titulo.text = "\n\n\nESPERANDO AL HOST...\n\nEl Host esta eligiendo\nla categoria de la revancha."
+		titulo.text = "\n\n\nESPERANDO AL HOST...\n\nEl Host esta eligiendo\nla categoria."
 		titulo.add_theme_color_override("font_color", Color(0.5, 0.8, 1.0))
 		TemaPixel.aplicar_fuente_label(titulo, 14)
 
-func crear_panel_creditos(cb_hover):
+func crear_panel_creditos(cb_cerrar, cb_hover):
 	panel_creditos = Control.new()
 	panel_creditos.name = "PanelCreditos"
 	panel_creditos.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -420,11 +460,11 @@ func crear_panel_creditos(cb_hover):
 	btn_cerrar_c.position = Vector2(225, 435)
 	btn_cerrar_c.size = Vector2(150, 40)
 	aplicar_boton_pixel(btn_cerrar_c, Color(0.35, 0.06, 0.06), Color(0.8, 0.2, 0.2), 11)
-	btn_cerrar_c.pressed.connect(func(): panel_creditos.hide())
+	btn_cerrar_c.pressed.connect(cb_cerrar)
 	btn_cerrar_c.mouse_entered.connect(cb_hover)
 	ventana.add_child(btn_cerrar_c)
 
-func crear_panel_modo(cb_local, cb_online, cb_hover):
+func crear_panel_modo(cb_local, cb_online, cb_volver, cb_hover):
 	panel_modo = Control.new()
 	panel_modo.set_anchors_preset(Control.PRESET_FULL_RECT)
 	panel_modo.hide()
@@ -475,7 +515,7 @@ func crear_panel_modo(cb_local, cb_online, cb_hover):
 	btn_volver.position = Vector2(175, 270)
 	btn_volver.size = Vector2(150, 45)
 	aplicar_boton_pixel(btn_volver, Color(0.35, 0.1, 0.1), Color(0.8, 0.3, 0.3), 12)
-	btn_volver.pressed.connect(func(): panel_modo.hide())
+	btn_volver.pressed.connect(cb_volver)
 	btn_volver.mouse_entered.connect(cb_hover)
 	ventana.add_child(btn_volver)
 
@@ -576,3 +616,19 @@ func actualizar_estado_red(texto: String, color: Color):
 func obtener_ip() -> String:
 	var ip = input_ip.text.strip_edges()
 	return ip if ip != "" else "127.0.0.1"
+
+func _texto_boton_categoria(texto: String, max_chars: int = 10) -> String:
+	var limpio = texto.strip_edges()
+	if limpio.length() <= max_chars:
+		return limpio
+	return limpio.substr(0, max_chars).rstrip(" ") + "..."
+
+func colocar_boton_volver_superior(panel):
+	var btn = panel.get_node_or_null("BtnVolver")
+	if btn:
+		btn.position = Vector2(20, 14)
+
+func colocar_boton_volver_lateral(panel):
+	var btn = panel.get_node_or_null("BtnVolver")
+	if btn:
+		btn.position = Vector2(10, 62)

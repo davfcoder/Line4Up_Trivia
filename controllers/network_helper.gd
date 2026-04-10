@@ -10,6 +10,6 @@ static func soy_host() -> bool:
 	return Global.mi_rol_multijugador == 1
 
 static func desconectar():
-	if Red.peer.get_connection_status() != MultiplayerPeer.CONNECTION_DISCONNECTED:
-		Red.peer.close()
 	Global.es_multijugador = false
+	if Red != null:
+		Red.cerrar_conexion()

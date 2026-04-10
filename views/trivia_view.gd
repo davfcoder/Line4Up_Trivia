@@ -19,6 +19,27 @@ func configurar(_pantalla_pregunta, _texto_pregunta, _contenedor_botones, _texto
 	contenedor_botones = _contenedor_botones
 	texto_reloj = _texto_reloj
 	crear_barra_tiempo()
+	crear_overlay_espera()
+
+func crear_overlay_espera():
+	var overlay = Panel.new()
+	overlay.name = "OverlayEspera"
+	overlay.size = pantalla_pregunta.size
+	overlay.position = Vector2.ZERO
+	overlay.add_theme_stylebox_override("panel", TemaPixel.crear_panel_pixel(Color(0.05, 0.05, 0.05, 0.9), Color(0.3, 0.3, 0.3)))
+	overlay.z_index = 20
+	overlay.hide()
+	
+	var label = Label.new()
+	label.name = "TextoEspera"
+	label.size = overlay.size
+	label.position = Vector2.ZERO
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	TemaPixel.aplicar_fuente_label(label, 18)
+	overlay.add_child(label)
+	
+	pantalla_pregunta.add_child(overlay)
 
 func estilizar_pantalla_pregunta(aplicar_boton_callback: Callable):
 	TemaPixel.aplicar_fuente_label(texto_pregunta, 15)
@@ -106,6 +127,23 @@ func aplicar_pregunta_visual(turno_actual: int, mi_rol_multijugador: int, es_mul
 		barra_tiempo.visible = true
 	if barra_fondo:
 		barra_fondo.visible = true
+		
+	# NUEVO: Controlar el cartel de "Es el turno del rival"
+	var overlay = pantalla_pregunta.get_node_or_null("OverlayEspera")
+	if overlay:
+		if es_mi_turno:
+			overlay.hide()
+		else:
+			var txt = overlay.get_node("TextoEspera")
+			var color_txt = "ROJO" if turno_actual == 1 else "AMARILLO"
+			var color_hex = Color(1, 0.3, 0.3) if turno_actual == 1 else Color(1, 0.85, 0.1)
+			txt.text = "ESPERANDO...\nES TURNO DEL JUGADOR " + str(turno_actual) + " " + color_txt
+			txt.add_theme_color_override("font_color", color_hex)
+			overlay.show()
+			
+	# Forzar tamaño de botones
+	for btn in contenedor_botones.get_children():
+		btn.custom_minimum_size = Vector2(0, 45)
 
 func mostrar_mensaje_error(
 	respuesta_correcta: String,
@@ -116,6 +154,8 @@ func mostrar_mensaje_error(
 	callback_hover: Callable,
 	aplicar_boton_callback: Callable
 ):
+	var overlay = pantalla_pregunta.get_node_or_null("OverlayEspera")
+	if overlay: overlay.hide()
 	texto_pregunta.text = "[X] INCORRECTO!\n\nRespuesta correcta:\n" + respuesta_correcta
 	if barra_tiempo:
 		barra_tiempo.visible = false

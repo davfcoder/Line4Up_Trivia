@@ -6,41 +6,39 @@ var preguntas_activas = []
 var pregunta_actual = {}
 
 func cargar_preguntas_desde_json(ruta: String, categoria: String):
+	# Carga directa y limpia de categorías personalizadas
+	if categoria.begins_with("custom_"):
+		var nombre_custom = categoria.replace("custom_", "")
+		preguntas_base = CustomCategoryModel.cargar_categoria(nombre_custom)
+		preguntas_activas = preguntas_base.duplicate(true)
+		
+		if preguntas_base.is_empty():
+			print("ERROR: Categoría personalizada no encontrada o vacía")
+		else:
+			print("Cargadas ", preguntas_base.size(), " preguntas personalizadas: ", nombre_custom)
+		return
+
+	# Carga normal de preguntas base (res://datos/preguntas.json)
 	var archivo = FileAccess.open(ruta, FileAccess.READ)
 	if archivo == null:
 		print("ERROR: No se pudo abrir preguntas.json")
-		preguntas_base = [
-			{
-				"pregunta": "Pregunta de emergencia: ¿Capital de Colombia?",
-				"opciones": ["Medellín", "Bogotá", "Cali", "Cartagena"],
-				"correcta": 1
-			}
-		]
-		preguntas_activas = preguntas_base.duplicate(true)
 		return
 	
 	var contenido = archivo.get_as_text()
 	archivo.close()
 	
 	var json = JSON.new()
-	var resultado = json.parse(contenido)
-	
-	if resultado != OK:
+	if json.parse(contenido) != OK:
 		print("ERROR: JSON mal formateado")
-		preguntas_base = []
-		preguntas_activas = []
 		return
 	
 	var datos = json.data
-	
 	if datos.has(categoria):
 		preguntas_base = datos[categoria]
 		preguntas_activas = preguntas_base.duplicate(true)
 		print("Cargadas ", preguntas_base.size(), " preguntas - Categoría: ", categoria)
 	else:
 		print("ERROR: Categoría '", categoria, "' no encontrada en JSON")
-		preguntas_base = []
-		preguntas_activas = []
 
 func reiniciar_preguntas():
 	preguntas_activas = preguntas_base.duplicate(true)
